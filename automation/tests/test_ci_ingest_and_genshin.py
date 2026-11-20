@@ -67,11 +67,14 @@ class TestCiIngestAndGenshinCore(unittest.TestCase):
             OcrItem(text="UI_DIALOG_MISSING_01", confidence=0.95, bbox=(120, 100, 320, 130)),
             OcrItem(text="正在重新连接服务器...", confidence=0.92, bbox=(500, 400, 720, 440)),
             OcrItem(text="活动奖励详情按钮", confidence=0.91, bbox=(1, 200, 140, 230)),
+            OcrItem(text="UID:104688390", confidence=0.99, bbox=(1760, 1055, 1918, 1079)),
+            OcrItem(text="关卡GUID:45694132064 UID：104688390", confidence=0.96, bbox=(1400, 1055, 1918, 1079)),
         ]
         res = ocr.inspect_items(items, frame_width=1920, frame_height=1080)
         self.assertEqual(len(res.forbidden_hits), 1)
         self.assertEqual(len(res.reconnect_hits), 1)
         self.assertEqual(len(res.overflow_hits), 1)
+        self.assertNotIn("104688390", " ".join(res.overflow_hits))
 
     def test_ci_ingest_script_end_to_end(self) -> None:
         script = AUTOMATION_ROOT / "scripts" / "ci_ingest.py"

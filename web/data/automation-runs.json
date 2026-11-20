@@ -62,7 +62,7 @@
         "ocrEngine": "rapidocr_onnxruntime",
         "vlmEnabled": false,
         "isAdmin": true,
-        "host": "COKO"
+        "host": "win-local"
       },
       "ci": {
         "provider": "local-cli",
@@ -73,7 +73,7 @@
         "jobUrl": null,
         "commitSha": null,
         "branch": null,
-        "runner": "COKO",
+        "runner": "win-local",
         "ingestedAt": null
       },
       "cases": [
@@ -142,10 +142,12 @@
           "caseId": "YS-OCR-01",
           "severity": "P2",
           "rule": "L10N_TEXT_OVERFLOW",
-          "msg": "OCR 检测到 1 处文本贴边/疑似裁切：'UID:104688390' @ (2240, 1401, 2481, 1437)",
+          "msg": "OCR 检测到 1 处贴边文本：'UID:[REDACTED]' @ (2240, 1401, 2481, 1437)（经人工复核为游戏右下角正常 UID 水印误报，已在 OcrAnalyzer 中补充 UID/GUID 白名单过滤）",
           "timestamp": "2026-11-20T19:32:30+08:00",
           "evidencePath": null,
-          "details": {}
+          "details": {
+            "triage": "false_positive_watermark"
+          }
         },
         {
           "caseId": "YS-PERF-01",
@@ -169,16 +171,16 @@
       "artifacts": [
         {
           "kind": "presentmon_csv",
-          "path": "B:\\CODE\\BUG分析_Neon\\automation\\reports\\runs\\RUN-YS-20261120-193029-5a82\\presentmon.csv",
+          "path": "automation/reports/runs/RUN-YS-20261120-193029-5a82/presentmon.csv",
           "label": "PresentMon Raw CSV"
         },
         {
           "kind": "telemetry",
-          "path": "B:\\CODE\\BUG分析_Neon\\automation\\reports\\runs\\RUN-YS-20261120-193029-5a82\\telemetry.json",
+          "path": "automation/reports/runs/RUN-YS-20261120-193029-5a82/telemetry.json",
           "label": "Frame & resource telemetry"
         }
       ],
-      "notes": "100% 零输入外部被动观测模式（Observe Mode），所有指标均为真实采样。"
+      "notes": "100% 零输入外部被动观测模式（Observe Mode），所有指标均为真实采样；已脱敏玩家 UID 与本地绝对路径，并记录 UID 水印误报复核结论。"
     }
   ]
 }

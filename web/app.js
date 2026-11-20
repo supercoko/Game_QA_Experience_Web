@@ -14,13 +14,15 @@
   }
 
   const DEFAULT_REPO = window.DATA_HUB.defaultRepo || "supercoko/Game_QA_Experience_Web";
+  const IS_PRIVATE = window.QA_APP_MODE === "private";
+  const DATA_BASE = IS_PRIVATE ? "../data" : "./data";
   const FORBIDDEN_ORIGINS = new Set(["mock", "demo", "fake", "synthetic", "simulated", "sample", "fabricated"]);
 
   const state = {
     activeTab: "overview",
     jobTier: "ALL",
     jobCompany: "ALL",
-    introTab: window.DATA_JOBS.selfIntros[0].id,
+    introTab: (window.DATA_JOBS && window.DATA_JOBS.selfIntros && window.DATA_JOBS.selfIntros[0]?.id) || "",
     onlineGame: "ALL",
     tcModule: "ALL",
     // Flashcards
@@ -33,7 +35,7 @@
     roadmapDone: new Set(JSON.parse(safeGet(STORAGE_KEY_ROADMAP, "[]"))),
     // Automation Hub & CI Ingestion (Strict Real-Data-Only)
     autoData: window.DATA_HUB.defaultAutomationData,
-    autoSource: "仓库基线：web/data/automation-runs.json（仅真实数据，已清零编造演示集）",
+    autoSource: "仓库基线：web/data/automation-runs.json（仅真实数据）",
     autoGameFilter: "ALL",
     expandedRuns: new Set(),
     ciWorkflowRuns: null,
@@ -55,17 +57,24 @@
     mastered: new Set(JSON.parse(safeGet(STORAGE_KEY_MASTERY, "[]")))
   };
 
-  const SECTION_TITLES = {
-    overview: "总览仪表盘 · 个人画像与数据洞察",
-    jobs: "岗位精准匹配 · 27 个官方 JD 动态修正（已结合鹰角/网易面评）",
-    intro: "个人介绍话术库 · 3 套高分场景模板",
-    qa: "工作经历 6 层深度追问 · 30 道通关题库",
-    online: "线上逃逸 Bug 补齐 · 4,134 条公告提炼与必考题",
+  const SECTION_TITLES = IS_PRIVATE ? {
+    overview: "总览与校准策略（本地私有模式）",
+    jobs: "岗位匹配评估 · 27 个官方 JD",
+    intro: "个人介绍话术 · 3 套精简版（60s / 2min）",
+    qa: "工作经历与必考追问 · 36 题（已拆分实际做过 vs 延伸思路）",
+    online: "四款游戏版本修复条目分析 · 4,134 条公告梳理",
     methods: "游戏测试方法论 & 实战用例库",
-    roadmap: "真实面评深度诊断 & 8 周突围逆袭路线（系统表达 + 战斗/任务补救）",
-    study: "欠缺知识诊断 & 交互式翻转学习卡片（40 张 · 含通用测试方法与案例）",
-    autohub: "四款游戏非侵入自动化方案（原神已实现）& CI 真实数据看板",
-    feedback: "Bug 反馈缺陷看板 & GitHub Pages 零后端部署方案"
+    roadmap: "求职复盘诊断 & 6 周并行投递路线",
+    study: "技术知识卡片 · 43 张（含 UE → Unity 迁移与通用测试方法）",
+    autohub: "非侵入自动化观测工具（原神已实现）& CI 真实数据看板",
+    feedback: "缺陷记录看板 & GitHub Pages 部署说明"
+  } : {
+    overview: "能力概览与作品集总览",
+    online: "四款商业游戏版本修复条目分析（4,134 条）",
+    methods: "游戏测试方法论 & 实战用例库",
+    study: "游戏 QA 技术知识卡片库",
+    autohub: "非侵入自动化观测工具 & CI 真实数据看板",
+    feedback: "缺陷记录看板 & 架构说明"
   };
 
   function saveMastery() {
@@ -84,7 +93,9 @@
 
   function getTotalQuestionIds() {
     const ids = [];
-    window.DATA_QA.forEach(t => t.layers.forEach(l => ids.push(`${t.id}-${l.layer}`)));
+    if (IS_PRIVATE && Array.isArray(window.DATA_QA)) {
+      window.DATA_QA.forEach(t => t.layers.forEach(l => ids.push(`${t.id}-${l.layer}`)));
+    }
     window.DATA_ONLINE.interviewQAs.forEach(q => ids.push(q.id));
     return ids;
   }
@@ -308,70 +319,140 @@
 
   /* ---------- 1. Overview ---------- */
   function renderOverview() {
+    const pub = window.DATA_PUBLIC_PROFILE;
+    const realRuns = state.autoData.runs || [];
+    const fcCount = window.DATA_STUDY.flashcards.length;
+
+    if (!IS_PRIVATE) {
+      const html = `
+        <div class="callout">
+          <strong>${escHtml(pub.title)}</strong> · ${escHtml(pub.years)}
+          <br/>${escHtml(pub.positioning)}
+        </div>
+
+        <div class="grid-4">
+          <div class="kpi-card">
+            <div class="kpi-label">版本修复条目分析</div>
+            <div class="kpi-value" style="color:var(--primary)">${window.DATA_ONLINE.summary.totalBugs.toLocaleString()} 条</div>
+            <div class="kpi-sub">4 款商业游戏 · ${window.DATA_ONLINE.summary.totalDocs} 篇大版本公告</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">方法论与实战用例</div>
+            <div class="kpi-value" style="color:var(--success)">${window.DATA_METHODS.methodologies.length} + ${window.DATA_METHODS.testCases.length}</div>
+            <div class="kpi-sub">8 大方法论 + 14 条核心边界用例</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">QA 技术知识卡片</div>
+            <div class="kpi-value" style="color:var(--accent)">${fcCount} 张</div>
+            <div class="kpi-sub">${window.DATA_STUDY.gapOverview.length} 大领域（含 UE→Unity 概念迁移）</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">非侵入自动化实测</div>
+            <div class="kpi-value" style="color:var(--primary)">${realRuns.length ? `${realRuns.length} 轮实测` : "原神已实现"}</div>
+            <div class="kpi-sub">仅真实采集数据 · CI Schema v2 校验</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 class="card-title">能力侧重点六维概览（自评） <span class="pill pill-a">UE · Vue3/Flask · 白盒定位</span></h3>
+            ${renderRadarSVG(pub.radar)}
+            <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${escHtml(pub.radarNote)}</div>
+          </div>
+          <div class="card">
+            <h3 class="card-title">四款游戏 4,134 条版本修复公告分类统计</h3>
+            ${renderPatternBars(window.DATA_ONLINE.summary.patternStats)}
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 class="card-title">核心工程与测试实践</h3>
+            <ul style="margin:0;padding-left:18px;">
+              ${pub.highlights.map(s => `<li style="margin-bottom:8px;">${escHtml(s)}</li>`).join("")}
+            </ul>
+          </div>
+          <div class="card">
+            <h3 class="card-title">作品集模块导航</h3>
+            <div style="display:grid;gap:10px;">
+              ${pub.portfolioModules.map(m => `
+                <div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer;" onclick="window.__goSec('${m.sec}')">
+                  <div style="font-weight:700;color:var(--primary);margin-bottom:4px;">${escHtml(m.title)} →</div>
+                  <div style="font-size:12.8px;color:var(--text-secondary);">${escHtml(m.desc)}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById("view-overview").innerHTML = html;
+      return;
+    }
+
     const p = window.DATA_JOBS.profileSummary;
     const sJobs = window.DATA_JOBS.jobs.filter(j => j.tier === "S");
     const aJobs = window.DATA_JOBS.jobs.filter(j => j.tier === "A");
-    const realRuns = state.autoData.runs || [];
+    const totalQA = (window.DATA_QA || []).reduce((acc, t) => acc + t.layers.length, 0) + window.DATA_ONLINE.interviewQAs.length;
+    const note = window.DATA_JOBS.strategyNote;
     const html = `
       <div class="callout warn">
-        <strong>🔥 结合鹰角/网易真实面评已动态重校准策略：</strong>
-        鹰角 UE 测开明确需要<strong>纯研发标准测开</strong>，网易反馈“前司未系统培养、经验缺失”——核心症结在于掉进了<strong>“纯开发 vs 深业务”的夹心层陷阱</strong>！
-        <br/>现阶段最高胜率策略：<strong>停止硬撞纯测开，主攻「高技术杠杆的系统/玩法业务 QA（米哈游 崩铁/星布谷地/绝区零 + 鹰角 UE 系统向）」</strong>，先用 2 周把系统侧练到“四层架构脱口而出”，再补齐战斗/任务模型与非侵入作品集！
-        <div style="margin-top:8px;">
-          <button class="btn btn-primary btn-sm" onclick="window.__goSec('roadmap')">立刻查看：面评诊断 & 8周逆袭路线 -></button>
-        </div>
+        <strong>${escHtml(note.title)}</strong>
+        <ul style="margin:6px 0 8px;padding-left:18px;">
+          ${note.bullets.slice(0, 3).map(b => `<li style="margin-bottom:4px;">${escHtml(b)}</li>`).join("")}
+        </ul>
+        <button class="btn btn-primary btn-sm" onclick="window.__goSec('roadmap')">查看完整复盘诊断 & 6 周并行路线 →</button>
       </div>
 
       <div class="grid-4">
         <div class="kpi-card">
-          <div class="kpi-label">校准后 S 级高胜率岗</div>
+          <div class="kpi-label">校准后第一优先（S 级）</div>
           <div class="kpi-value" style="color:var(--success)">${sJobs.length} 个</div>
-          <div class="kpi-sub">鹰角UE系统向 / 绝区零 / 崩铁 / 星布谷地</div>
+          <div class="kpi-sub">${escHtml(sJobs.map(j => j.short || j.title).join(" / "))}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">强力 A 级投递岗</div>
+          <div class="kpi-label">第二优先（A 级）</div>
           <div class="kpi-value" style="color:var(--primary)">${aJobs.length} 个</div>
-          <div class="kpi-sub">原神 / 因缘精灵业务岗 / 源初之结专项</div>
+          <div class="kpi-sub">${escHtml(aJobs.map(j => j.short || j.title).join(" / "))}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">面试追问 + 学习卡片</div>
-          <div class="kpi-value" style="color:var(--accent)">36 题 + 40 卡</div>
-          <div class="kpi-sub">含通用测试方法+经典案例、战斗/任务/商业化补齐</div>
+          <div class="kpi-label">追问题库 + 技术卡片</div>
+          <div class="kpi-value" style="color:var(--accent)">${totalQA} 题 + ${fcCount} 卡</div>
+          <div class="kpi-sub">含离职/空窗期/反问清单、Unity 迁移、通用测试方法</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">非侵入自动化 + CI 入库</div>
+          <div class="kpi-label">非侵入自动化实测</div>
           <div class="kpi-value" style="color:var(--primary)">${realRuns.length ? `${realRuns.length} 轮实测` : "原神已实现"}</div>
-          <div class="kpi-sub">${realRuns.length ? "严格真实数据 · CI 自动校验入库" : "零编造数据 · 等待真实巡检 CI 入库"}</div>
+          <div class="kpi-sub">真实数据 · 已脱敏 UID 与本地路径</div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <h3 class="card-title">个人能力六维雷达图（已更新全栈平台维度） <span class="pill pill-s">Vue3+Flask+UE</span></h3>
+          <h3 class="card-title">能力六维雷达图（自评参考） <span class="pill pill-a">UE · Vue3/Flask · 白盒定位</span></h3>
           ${renderRadarSVG(p.radar)}
         </div>
         <div class="card">
-          <h3 class="card-title">四款游戏 4,134 条线上逃逸 Bug 高频模式</h3>
+          <h3 class="card-title">四款游戏 4,134 条版本修复公告分类统计</h3>
           ${renderPatternBars(window.DATA_ONLINE.summary.patternStats)}
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <h3 class="card-title">核心竞争力优势（面试必打王牌）</h3>
+          <h3 class="card-title">已有优势（面向业务/系统 QA 岗）</h3>
           <ul style="margin:0;padding-left:18px;">
-            ${p.strengths.map(s => `<li style="margin-bottom:8px;">${escHtml(s)}</li>`).join("")}
+            ${pub.highlights.map(s => `<li style="margin-bottom:8px;">${escHtml(s)}</li>`).join("")}
           </ul>
         </div>
         <div class="card">
-          <h3 class="card-title">当前短板与精准补齐入口</h3>
+          <h3 class="card-title">客观短板与风险提示</h3>
           <ul style="margin:0;padding-left:18px;">
             ${p.gaps.map(g => `<li style="margin-bottom:8px;">${escHtml(g)}</li>`).join("")}
           </ul>
           <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;">
-            <button class="btn btn-primary btn-sm" onclick="window.__goSec('study')">刷 24 张短板学习卡片 -></button>
-            <button class="btn btn-sm" onclick="window.__goSec('autohub')">看非侵入自动化看板 -></button>
-            <button class="btn btn-sm" onclick="window.__goSec('feedback')">GitHub Pages 部署 & 反馈 -></button>
+            <button class="btn btn-primary btn-sm" onclick="window.__goSec('study')">刷 ${fcCount} 张技术知识卡片 →</button>
+            <button class="btn btn-sm" onclick="window.__goSec('qa')">演练 36 道追问（含离职/反问） →</button>
+            <button class="btn btn-sm" onclick="window.__goSec('autohub')">查看自动化看板 →</button>
           </div>
         </div>
       </div>
@@ -381,6 +462,7 @@
 
   /* ---------- 2. Jobs ---------- */
   function renderJobs() {
+    if (!IS_PRIVATE || !window.DATA_JOBS) return;
     const jobs = window.DATA_JOBS.jobs;
     const filtered = jobs.filter(j => {
       if (state.jobTier !== "ALL" && j.tier !== state.jobTier) return false;
@@ -389,17 +471,19 @@
     });
 
     const tierMeta = {
-      S: { cls: "pill-s", text: "S 级 · 首选必投" },
-      A: { cls: "pill-a", text: "A 级 · 强力推荐" },
-      B: { cls: "pill-b", text: "B 级 · 谨慎备选" },
-      C: { cls: "pill-c", text: "C 级 · 建议避坑" }
+      S: { cls: "pill-s", text: "S 级 · 第一优先" },
+      A: { cls: "pill-a", text: "A 级 · 第二优先" },
+      B: { cls: "pill-b", text: "B 级 · 需准备/暂缓" },
+      C: { cls: "pill-c", text: "C 级 · 不匹配" }
     };
+    const note = window.DATA_JOBS.strategyNote;
 
     const html = `
       <div class="callout warn">
-        <strong>结合“鹰角 UE 测开未通过（需纯测开）”与“网易面评”后的投递战略重排：</strong>
-        <br/>• <strong>当前 S 级最高胜率池（发挥“综合+工具杠杆”优势，规避纯开发硬门槛）</strong>：<strong>鹰角「UE 系统向 (92%)」</strong>、<strong>米哈游「绝区零 (89%)」</strong>、<strong>「崩坏：星穹铁道 (88%)」</strong>（系统权重高、避开硬核 ACT 战斗短板）、<strong>「星布谷地 (87%)」</strong>（物品/背包/采集/家园双人交互 100% 命中！）。
-        <br/>• <strong>纯测开岗降级预警（B 级暂缓）</strong>：鹰角 UE 测开/工具向/明日方舟测开与米哈游因缘精灵平台测开偏向纯研发标准（算法+后端高并发+独立底层框架），建议先通过业务+工具复合岗上岸或按「路线 B」专攻 4~6 个月算法与底层后再战。
+        <strong>${escHtml(note.title)}</strong>
+        <ul style="margin:6px 0 0;padding-left:18px;">
+          ${note.bullets.map(b => `<li style="margin-bottom:4px;">${escHtml(b)}</li>`).join("")}
+        </ul>
       </div>
 
       <div class="filter-bar">
@@ -409,7 +493,7 @@
             ${t === "ALL" ? `全部 (${jobs.length})` : `${t} 级 (${jobs.filter(j => j.tier === t).length})`}
           </button>`).join("")}
         <span style="margin-left:8px;font-size:13px;font-weight:700;color:var(--text-muted);">公司：</span>
-        ${["ALL", "鹰角网络", "米哈游"].map(c => `
+        ${["ALL", ...new Set(jobs.map(j => j.company))].map(c => `
           <button class="filter-chip ${state.jobCompany === c ? "active" : ""}" data-comp="${c}">
             ${c === "ALL" ? "全部公司" : c}
           </button>`).join("")}
@@ -472,12 +556,13 @@
 
   /* ---------- 3. Self Intros ---------- */
   function renderIntro() {
+    if (!IS_PRIVATE || !window.DATA_JOBS) return;
     const intros = window.DATA_JOBS.selfIntros;
     const cur = intros.find(i => i.id === state.introTab) || intros[0];
 
     const html = `
       <div class="callout">
-        <strong>自我介绍设计心法：</strong>已同步融入 <strong>Vue 3 + TypeScript + Python + Flask + MongoDB</strong> 全栈平台经历，用“<strong>全栈质量平台 + UE配置左移工具链 + 白盒代码定位</strong>”主动把面试官引向你的绝对主场。
+        <strong>口述原则：</strong>1 分钟版控制在 60~70 秒（约 260 字），2 分钟版控制在 2 分钟内（约 500 字），只讲真实经历，技术栈细节留给面试官追问。
       </div>
 
       <div class="tab-bar">
@@ -526,13 +611,15 @@
 
   /* ---------- 4. 6-Layer QA ---------- */
   function renderQA() {
+    if (!IS_PRIVATE || !window.DATA_QA) return;
+    const totalCount = window.DATA_QA.reduce((acc, t) => acc + t.layers.length, 0);
     const html = `
       <div class="callout">
-        <strong>交互式 6 层递进通关演练：</strong>专题二已同步升级为 <strong>Vue3+TS+Flask+MongoDB 全栈架构、大 Diff 渲染优化、Flask 异步解耦、MongoDB 复合索引与多租户中台演进</strong> 深度追问！
+        <strong>深度追问演练（共 ${totalCount} 题）：</strong>每道题已严格拆分<strong>【实际做过】</strong>与<strong>【如果继续迭代 / 延伸思路】</strong>，避免把未落地的方案说成已做过；新增专题六（离职原因、空窗期、Unity 迁移、职级对齐与反问面试官）。
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-        <button class="btn btn-primary btn-sm" id="qa-expand-all">展开全部 30 题</button>
+        <button class="btn btn-primary btn-sm" id="qa-expand-all">展开全部 ${totalCount} 题</button>
         <button class="btn btn-sm" id="qa-collapse-all">收起全部（仅保留 L1）</button>
       </div>
 
@@ -624,22 +711,21 @@
     const filteredArcs = data.archetypes.filter(a => state.onlineGame === "ALL" || a.games.includes(state.onlineGame));
 
     const html = `
-      <div class="callout warn">
-        <strong>如何正确使用本板块补齐“无完整上线经历”短板？</strong>
-        <br/>将其转化为<strong>“基于 4 款顶级商业项目 4,134 条真实线上逃逸缺陷样本的系统复盘”</strong>：面对线上应急、脏数据补发、多端兼容性与跨版本防回归追问，直接输出底层归因、标准 SOP 与防线方案。
+      <div class="callout">
+        <strong>${escHtml(data.summary.scopeNote || "")}</strong>
       </div>
 
       <div class="grid-4">
         ${data.summary.games.map(g => `
           <div class="kpi-card" style="border-top:3px solid ${g.color}">
-            <div class="kpi-label">${escHtml(g.name)} · ${g.docs} 篇官方公告</div>
+            <div class="kpi-label">${escHtml(g.name)} · ${g.docs} 篇公告</div>
             <div class="kpi-value" style="color:${g.color}">${g.bugs.toLocaleString()} 条</div>
             <div class="kpi-sub">${escHtml(g.note)}</div>
           </div>
         `).join("")}
       </div>
 
-      <h3 style="margin:22px 0 12px;font-size:17px;">一、八大高频线上逃逸 Bug 专题（源自真实公告原文）</h3>
+      <h3 style="margin:22px 0 12px;font-size:17px;">一、八类典型版本修复专题（源自公开更新公告）</h3>
       <div class="filter-bar">
         <span style="font-size:13px;font-weight:700;color:var(--text-muted);">按涉及游戏筛选：</span>
         ${["ALL", "原神", "崩铁", "绝区零", "终末地"].map(g => `
@@ -656,7 +742,7 @@
               <span class="pill pill-c">${escHtml(a.severity)}</span>
             </div>
             <div style="font-size:12.8px;color:var(--success);background:var(--success-soft);padding:7px 10px;border-radius:6px;margin-bottom:10px;">
-              <strong>与你个人经历的衔接点：</strong>${escHtml(a.linkToSelf)}
+              <strong>工程关联：</strong>${escHtml(a.linkToSelf)}
             </div>
             <div style="font-size:13.4px;margin-bottom:10px;">
               <strong>典型技术根因：</strong>${escHtml(a.rootCause)}
@@ -676,7 +762,7 @@
         `).join("")}
       </div>
 
-      <h3 style="margin:26px 0 12px;font-size:17px;">二、线上项目必考面试高频题与高分应答（6 题）</h3>
+      <h3 style="margin:26px 0 12px;font-size:17px;">二、线上质量保障与应急典型问题拆解（6 题）</h3>
       <div class="track-card">
         <div class="layer-stepper">
           ${data.interviewQAs.map((item, idx) => {
@@ -762,7 +848,7 @@
               <th style="width:200px;">前置条件</th>
               <th>核心操作步骤</th>
               <th>核心断言与预期结果</th>
-              <th style="width:175px;">关联线上逃逸/经历</th>
+              <th style="width:175px;">关联修复条目 / 实践</th>
             </tr>
           </thead>
           <tbody>
@@ -825,10 +911,10 @@
 
     const html = `
       <div class="callout">
-        <strong>针对性短板补齐：</strong>已新增<strong>第 8 板块「通用测试方法与经典案例」</strong>（等价类/边界值、状态迁移、判定表、正交法、场景法、探索性测试、生命周期清理、灰盒与测试金字塔），共 <strong>40 张间隔记忆翻转学习卡片</strong>！点击卡片翻转看精解与面试金句，自评结果自动保存在本地浏览器。
+        <strong>游戏 QA 技术知识卡片库（共 ${data.gapOverview.length} 大领域 · ${data.flashcards.length} 张）：</strong>覆盖线上发布运维、性能与渲染、Web 全栈工程、弱网安全、AI/VLM 工程化、多端规范、核心业务建模、通用测试方法与 UE → Unity 概念迁移。点击卡片可翻转查看详解与要点，阅读状态保存在本地浏览器。
       </div>
 
-      <h3 style="margin:0 0 12px;font-size:16.5px;">一、六大欠缺知识诊断地图</h3>
+      <h3 style="margin:0 0 12px;font-size:16.5px;">一、${data.gapOverview.length} 大技术知识地图</h3>
       <div class="grid-3">
         ${data.gapOverview.map(g => `
           <div class="card" style="padding:15px;">
@@ -836,7 +922,7 @@
               <span>${escHtml(g.cat)}</span>
               <span class="pill ${g.priority.startsWith("P0") ? "pill-c" : g.priority.startsWith("P1") ? "pill-a" : "pill-muted"}">${escHtml(g.priority)}</span>
             </div>
-            <div style="font-size:12.8px;color:var(--text-secondary);margin-bottom:6px;"><strong>为什么补：</strong>${escHtml(g.why)}</div>
+            <div style="font-size:12.8px;color:var(--text-secondary);margin-bottom:6px;"><strong>学习目标：</strong>${escHtml(g.why)}</div>
             <div style="font-size:12.5px;color:var(--primary);"><strong>核心知识点：</strong>${escHtml(g.focus)}</div>
           </div>
         `).join("")}
@@ -976,8 +1062,9 @@
     });
   }
 
-  /* ---------- ★ Real Interview Diagnosis & 8-Week Roadmap ---------- */
+  /* ---------- ★ Real Interview Diagnosis & 6-Week Parallel Roadmap ---------- */
   function renderRoadmap() {
+    if (!IS_PRIVATE || !window.DATA_ROADMAP) return;
     const rm = window.DATA_ROADMAP;
     const allTasks = rm.roadmapWeeks.flatMap(w => w.tasks);
     const doneTasks = allTasks.filter(t => state.roadmapDone.has(t.id)).length;
@@ -1042,8 +1129,8 @@
         </div>
       `).join("")}
 
-      <h3 style="margin:24px 0 12px;font-size:17px;">四、零战斗 / 零任务 / 零商业化上线经历：三套务实补救方案</h3>
-      <div class="grid-3">
+      <h3 style="margin:24px 0 12px;font-size:17px;">四、四块短板务实补齐方案（战斗 / 任务 / 商业化与上线 / UE→Unity 迁移）</h3>
+      <div class="grid-2">
         ${rm.missingDomains.map(d => `
           <div class="card">
             <div class="card-title" style="font-size:14.8px;">${escHtml(d.domain)}</div>
@@ -1064,7 +1151,7 @@
       </div>
 
       <h3 style="margin:24px 0 12px;font-size:17px;">
-        五、8 周突围逆袭执行清单（已完成 ${doneTasks} / ${allTasks.length} · ${pct}%）
+        五、6 周并行突围执行清单（已完成 ${doneTasks} / ${allTasks.length} · ${pct}%）
       </h3>
       <div class="progress-track" style="height:10px;margin-bottom:16px;">
         <div class="progress-fill" style="width:${pct}%"></div>
@@ -1501,7 +1588,7 @@
       const repo = (document.getElementById("ci-repo-input")?.value || state.githubRepo || DEFAULT_REPO).trim();
       const candidates = [];
       if (window.location.protocol !== "file:") {
-        candidates.push({ url: "./data/automation-runs.json?t=" + Date.now(), label: "在线实时加载：./data/automation-runs.json" });
+        candidates.push({ url: `${DATA_BASE}/automation-runs.json?t=` + Date.now(), label: `在线实时加载：${DATA_BASE}/automation-runs.json` });
       }
       if (repo && repo.includes("/")) {
         candidates.push({
@@ -1961,31 +2048,35 @@
     if (!q) { resBox.style.display = "none"; resBox.innerHTML = ""; return; }
 
     const hits = [];
-    window.DATA_JOBS.jobs.forEach(j => {
-      if ((j.title + j.company + j.direction + j.hits.join("") + j.advice).toLowerCase().includes(q)) {
-        hits.push({ sec: "jobs", tag: `岗位 · ${j.tier}级`, title: `${j.company} - ${j.title} (${j.score}%)`, sub: j.advice });
-      }
-    });
-    window.DATA_QA.forEach(t => {
-      t.layers.forEach(l => {
-        if ((l.q + l.answer + l.intent).toLowerCase().includes(q)) {
-          hits.push({ sec: "qa", tag: `6层追问 · ${l.layer}`, title: l.q, sub: t.title });
+    if (IS_PRIVATE && window.DATA_JOBS) {
+      window.DATA_JOBS.jobs.forEach(j => {
+        if ((j.title + j.company + j.direction + j.hits.join("") + j.advice).toLowerCase().includes(q)) {
+          hits.push({ sec: "jobs", tag: `岗位 · ${j.tier}级`, title: `${j.company} - ${j.title} (${j.score}%)`, sub: j.advice });
         }
       });
-    });
+    }
+    if (IS_PRIVATE && Array.isArray(window.DATA_QA)) {
+      window.DATA_QA.forEach(t => {
+        t.layers.forEach(l => {
+          if ((l.q + l.answer + l.intent).toLowerCase().includes(q)) {
+            hits.push({ sec: "qa", tag: `追问 · ${l.layer}`, title: l.q, sub: t.title });
+          }
+        });
+      });
+    }
     window.DATA_STUDY.flashcards.forEach(c => {
       if ((c.cat + c.front + c.back + c.golden).toLowerCase().includes(q)) {
-        hits.push({ sec: "study", tag: `学习卡片 · ${c.cat}`, title: c.front, sub: c.golden });
+        hits.push({ sec: "study", tag: `知识卡片 · ${c.cat}`, title: c.front, sub: c.golden });
       }
     });
     window.DATA_ONLINE.archetypes.forEach(a => {
       if ((a.title + a.rootCause + a.quotes.map(x => x.text).join("")).toLowerCase().includes(q)) {
-        hits.push({ sec: "online", tag: "线上逃逸专题", title: a.title, sub: a.rootCause });
+        hits.push({ sec: "online", tag: "版本修复专题", title: a.title, sub: a.rootCause });
       }
     });
     window.DATA_ONLINE.interviewQAs.forEach(o => {
       if ((o.q + o.answer).toLowerCase().includes(q)) {
-        hits.push({ sec: "online", tag: "线上必考题", title: o.q, sub: o.intent });
+        hits.push({ sec: "online", tag: "线上质量专题", title: o.q, sub: o.intent });
       }
     });
     window.DATA_METHODS.testCases.forEach(tc => {
@@ -2037,14 +2128,14 @@
   async function tryFetchLiveAutomationJson() {
     if (window.location.protocol === "file:") return;
     try {
-      const resp = await fetch("./data/automation-runs.json?t=" + Date.now());
+      const resp = await fetch(`${DATA_BASE}/automation-runs.json?t=` + Date.now());
       if (resp.ok) {
         const json = await resp.json();
         if (Array.isArray(json.runs)) {
           state.autoData = json;
           state.autoSource = json.runs.length
-            ? `在线实时加载：./data/automation-runs.json（${json.runs.length} 条 CI/实测记录）`
-            : "在线实时加载：./data/automation-runs.json（当前 0 条，等待真实 CI 入库）";
+            ? `在线实时加载：${DATA_BASE}/automation-runs.json（${json.runs.length} 条 CI/实测记录）`
+            : `在线实时加载：${DATA_BASE}/automation-runs.json（当前 0 条，等待真实 CI 入库）`;
           renderOverview();
           renderAutoHub();
         }

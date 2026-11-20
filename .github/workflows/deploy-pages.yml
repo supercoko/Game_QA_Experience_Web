@@ -40,6 +40,9 @@ jobs:
       - name: Validate real-data-only automation store (Schema v2)
         run: python3 automation/scripts/ci_ingest.py validate --store web/data/automation-runs.json
 
+      - name: Ensure private prep files are excluded from public Pages
+        run: rm -rf web/private
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

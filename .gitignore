@@ -17,3 +17,7 @@ automation/tools/*.dll
 
 # Keep inbox directory tracked, ignore local temporary files
 automation/reports/inbox/*.tmp
+
+# Private interview prep materials (never publish to GitHub / Pages)
+web/private/
+
