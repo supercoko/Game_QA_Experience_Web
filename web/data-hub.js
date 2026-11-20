@@ -1,213 +1,141 @@
 window.DATA_HUB = {
-  // 默认离线回退数据（与 web/data/automation-runs.json 结构 100% 一致；托管到 GitHub Pages 后优先 fetch 最新 JSON）
+  defaultRepo: "supercoko/Game_QA_Experience_Web",
+
+  // 严格真实数据原则：默认空数据集，不预置任何编造或模拟的巡检数据。
+  // 托管至 GitHub Pages 或本地 HTTP 打开后，自动 fetch ./data/automation-runs.json 获取 CI 入库的真实记录。
   defaultAutomationData: {
-    updatedAt: "2026-11-20 16:50",
-    note: "当前展示为标准 Schema 演示数据集（模拟四款线上客户端的非侵入式黑盒巡检结果）。后续本地 Python Runner 运行后，直接覆盖 web/data/automation-runs.json 并 git push，或点击页面“导入本地 JSON”即可实时刷新！",
-    runs: [
-      {
-        id: "RUN-20261120-01",
-        date: "2026-11-20",
-        game: "明日方舟：终末地",
-        version: "丹青渡 (2026.10)",
-        suite: "冷启动 + 地图缩放 + 手柄热切视觉巡检",
-        mode: "非侵入黑盒 (DXGI+OCR+PresentMon)",
-        status: "WARN",
-        passRate: 91.7,
-        totalCases: 12,
-        passedCases: 11,
-        failedCases: 1,
-        coldStartSec: 18.4,
-        avgFps: 59.6,
-        low1Fps: 47.2,
-        memMb: 4210,
-        findings: [
-          { caseId: "NI-ZMD-04", severity: "P1", rule: "OCR_TIMER_MISSING", msg: "玩法倒计时界面执行键鼠->手柄热切换后，OCR 倒计时区域消失 1.8s（疑似 UI 重建）" }
-        ]
-      },
-      {
-        id: "RUN-20261119-02",
-        date: "2026-11-19",
-        game: "绝区零",
-        version: "3.3 重返天空的旅程",
-        suite: "多分辨率 UI 裁切 + PresentMon 帧率基线",
-        mode: "非侵入黑盒 (DXGI+CV+PresentMon)",
-        status: "PASS",
-        passRate: 100.0,
-        totalCases: 15,
-        passedCases: 15,
-        failedCases: 0,
-        coldStartSec: 14.2,
-        avgFps: 118.4,
-        low1Fps: 88.5,
-        memMb: 3890,
-        findings: []
-      },
-      {
-        id: "RUN-20261118-03",
-        date: "2026-11-18",
-        game: "崩坏：星穹铁道",
-        version: "4.7 此刻将群星付之一笑",
-        suite: "多界面遍历 OCR + Clumsy 弱网重连校验",
-        mode: "非侵入黑盒 (OCR+VLM+Clumsy)",
-        status: "FAIL",
-        passRate: 87.5,
-        totalCases: 16,
-        passedCases: 14,
-        failedCases: 2,
-        coldStartSec: 15.8,
-        avgFps: 60.0,
-        low1Fps: 52.1,
-        memMb: 3640,
-        findings: [
-          { caseId: "NI-SR-09", severity: "P2", rule: "L10N_TEXT_OVERFLOW", msg: "英文语言下活动弹窗右下角按钮文本超出边框（OCR 边界与按钮框重叠）" },
-          { caseId: "NI-SR-14", severity: "P1", rule: "RECONNECT_UI_STUCK", msg: "Clumsy 断网 12s 恢复后，重连提示遮罩残留超过 8s 未自动消散" }
-        ]
-      },
-      {
-        id: "RUN-20261117-04",
-        date: "2026-11-17",
-        game: "原神",
-        version: "7.2 坏灭肇始之时",
-        suite: "大世界传送加载耗时 + 键鼠/手柄图标模板匹配",
-        mode: "非侵入黑盒 (DXGI+OpenCV+PresentMon)",
-        status: "PASS",
-        passRate: 100.0,
-        totalCases: 14,
-        passedCases: 14,
-        failedCases: 0,
-        coldStartSec: 16.9,
-        avgFps: 59.8,
-        low1Fps: 49.4,
-        memMb: 4580,
-        findings: []
-      },
-      {
-        id: "RUN-20261115-05",
-        date: "2026-11-15",
-        game: "绝区零",
-        version: "3.2 她与她的隐秘往事",
-        suite: "ESC 暂停计时器 OCR + 动态壁纸 VLM 巡检",
-        mode: "非侵入黑盒 (OCR+VLM)",
-        status: "WARN",
-        passRate: 93.3,
-        totalCases: 15,
-        passedCases: 14,
-        failedCases: 1,
-        coldStartSec: 14.6,
-        avgFps: 116.2,
-        low1Fps: 84.0,
-        memMb: 3920,
-        findings: [
-          { caseId: "NI-ZZZ-11", severity: "P2", rule: "VLM_VISUAL_CLIP", msg: "VLM 巡检标记：特定分辨率下拍照预览框底部 UID 区域发生边缘裁切" }
-        ]
-      },
-      {
-        id: "RUN-20261112-06",
-        date: "2026-11-12",
-        game: "原神",
-        version: "7.1 往冥府的安魂歌",
-        suite: "背包/角色/拍照 UI 视觉巡检 + 帧时间毛刺",
-        mode: "非侵入黑盒 (DXGI+CV+PresentMon)",
-        status: "PASS",
-        passRate: 92.9,
-        totalCases: 14,
-        passedCases: 13,
-        failedCases: 1,
-        coldStartSec: 17.5,
-        avgFps: 59.5,
-        low1Fps: 45.8,
-        memMb: 4620,
-        findings: [
-          { caseId: "NI-YS-07", severity: "P2", rule: "FRAMETIME_SPIKE", msg: "首次打开复杂 UI 界面触发 118ms 单帧毛刺（疑似同步加载/PSO编译）" }
-        ]
-      }
-    ]
+    schemaVersion: "2.0",
+    updatedAt: null,
+    repository: "supercoko/Game_QA_Experience_Web",
+    policy: "real-data-only",
+    note: "仅收录由非侵入自动化工具实际执行或 CI 流水线校验入库的真实巡检数据；不预置任何编造或模拟记录。",
+    ci: {
+      pipeline: "github-actions",
+      ingestWorkflow: ".github/workflows/ingest-automation-run.yml",
+      qualityGateWorkflow: ".github/workflows/ci-quality-gate.yml",
+      deployWorkflow: ".github/workflows/deploy-pages.yml",
+      lastIngestAt: null,
+      lastRunId: null,
+      lastJobUrl: null,
+      lastCommitSha: null,
+      totalIngestedRuns: 0
+    },
+    runs: []
   },
 
-  initialBugs: [
+  // 不预置任何编造缺陷记录；真实 Bug 可手工录入、由自动化真实 Finding 一键转入，或同步 GitHub Issues。
+  initialBugs: [],
+
+  ciChannels: [
     {
-      id: "BUG-1001",
-      createdAt: "2026-11-20 14:20",
-      game: "明日方舟：终末地",
-      module: "手柄热切换 / UI",
-      severity: "P1",
-      status: "待确认",
-      runId: "RUN-20261120-01",
-      title: "玩法倒计时期间键鼠热切换手柄，倒计时文本短暂消失",
-      steps: "1. PC 端进入倒计时挑战玩法；\n2. 倒计时进行中拨动 Xbox/PS5 手柄摇杆触发输入热切换；\n3. 观察顶部倒计时 UI。",
-      expected: "输入图标平滑切换为手柄键位，倒计时数值持续连续显示。",
-      actual: "热切换瞬间倒计时控件被清空隐藏约 1.8 秒（OCR 校验告警）。"
+      name: "通道 1 · GitHub repository_dispatch（CLI / 网页在线上报）",
+      workflow: ".github/workflows/ingest-automation-run.yml",
+      trigger: "POST /repos/{owner}/{repo}/dispatches (event_type: automation-run-report)",
+      detail: "本地运行 `qa-observer genshin observe --ci-push` 或 `qa-observer ci push --report report.json` 后，自动触发 GitHub Actions 校验 Schema v2、拒绝编造来源、幂等 Upsert 写入 `web/data/automation-runs.json`，并自动联动 `deploy-pages.yml` 发布最新看板。"
     },
     {
-      id: "BUG-1002",
-      createdAt: "2026-11-18 19:05",
-      game: "崩坏：星穹铁道",
-      module: "弱网重连 / 遮罩",
-      severity: "P1",
-      status: "修复中",
-      runId: "RUN-20261118-03",
-      title: "断网 12s 后网络恢复，重连遮罩残留导致无法点击主界面",
-      steps: "1. Clumsy 模拟断网 12s 触发重连提示；\n2. 恢复网络等待重连成功；\n3. 尝试点击主界面功能入口。",
-      expected: "重连成功后 2s 内遮罩消失，界面恢复响应。",
-      actual: "重连提示遮罩持续残留超过 8s，非侵入巡检触发超时失败。"
+      name: "通道 2 · Inbox 目录 Git Push 自动归档入库",
+      workflow: ".github/workflows/ingest-automation-run.yml",
+      trigger: "push paths: automation/reports/inbox/*.json",
+      detail: "本地执行 `--save-inbox` 将单轮真实 `report.json` 放入 `automation/reports/inbox/` 后 `git push`，CI 自动校验合并、打上真实 Commit/Job 溯源戳、清理 inbox 并触发 Pages 重新部署。"
     },
     {
-      id: "BUG-1003",
-      createdAt: "2026-11-15 11:30",
-      game: "绝区零",
-      module: "多分辨率 / 相机",
-      severity: "P2",
-      status: "已回归关闭",
-      runId: "RUN-20261115-05",
-      title: "21:9 分辨率下拍照选择特定画框时 UID 边缘被裁切",
-      steps: "1. 切换 2560x1080 分辨率；\n2. 进入相机选择边缘装饰画框并预览成片。",
-      expected: "UID 完整显示在安全区内无裁切。",
-      actual: "UID 右下角被画框遮挡，VLM 视觉巡检检出异常。"
+      name: "通道 3 · Jenkins Windows GPU 执行机流水线",
+      workflow: "automation/ci/Jenkinsfile",
+      trigger: "Jenkins Declarative Pipeline (windows-gpu-qa)",
+      detail: "复刻个人简历中的 Windows 执行机工程链路：Jenkins 调度 `qa-observer genshin` 跑完巡检后归档证据截图，自动通过 `ci push` 同步到 GitHub CI 看板，并可选推送飞书群告警卡片。"
+    },
+    {
+      name: "门禁 · CI Quality Gate & 反编造校验",
+      workflow: ".github/workflows/ci-quality-gate.yml",
+      trigger: "push / pull_request (automation/**, web/**)",
+      detail: "每次提交自动运行 `qa_observer` 单元测试（视觉异常/PresentMon 解析/原神套件/CI 入库脚本）与 `ci_ingest.py validate`，强制校验 `policy == real-data-only` 与 Schema v2 合规性。"
     }
   ],
 
   jsonSchemaDoc: `{
-  "updatedAt": "2026-11-20 16:50",
+  "schemaVersion": "2.0",
+  "updatedAt": "2026-11-20T18:30:00Z",
+  "repository": "supercoko/Game_QA_Experience_Web",
+  "policy": "real-data-only",
+  "ci": {
+    "pipeline": "github-actions",
+    "ingestWorkflow": ".github/workflows/ingest-automation-run.yml",
+    "qualityGateWorkflow": ".github/workflows/ci-quality-gate.yml",
+    "deployWorkflow": ".github/workflows/deploy-pages.yml",
+    "lastIngestAt": "2026-11-20T18:31:05Z",
+    "lastRunId": "RUN-YS-20261120-183000-a1b2",
+    "lastJobUrl": "https://github.com/supercoko/Game_QA_Experience_Web/actions/runs/<id>",
+    "totalIngestedRuns": 1
+  },
   "runs": [
     {
-      "id": "RUN-20261120-01",
+      "id": "RUN-YS-20261120-183000-a1b2",
+      "schemaVersion": "2.0",
+      "dataOrigin": "real_capture | real_replay",
+      "timestamp": "2026-11-20T18:30:00+08:00",
       "date": "2026-11-20",
-      "game": "明日方舟：终末地",
-      "version": "丹青渡 (2026.10)",
-      "suite": "冷启动 + 地图缩放 + 手柄热切视觉巡检",
-      "mode": "非侵入黑盒 (DXGI+OCR+PresentMon)",
+      "game": "原神",
+      "gameKey": "genshin",
+      "version": "<从 config.ini 读取的真实版本号或 unknown>",
+      "suite": "genshin-non-intrusive-observe",
+      "mode": "observe | active-ui | replay",
       "status": "PASS | WARN | FAIL",
-      "passRate": 91.7,
-      "totalCases": 12,
-      "passedCases": 11,
-      "failedCases": 1,
-      "coldStartSec": 18.4,
-      "avgFps": 59.6,
-      "low1Fps": 47.2,
-      "memMb": 4210,
-      "findings": [
-        { "caseId": "NI-ZMD-04", "severity": "P1", "rule": "OCR_TIMER_MISSING", "msg": "具体异常描述" }
-      ]
+      "passRate": 100.0,
+      "totalCases": 6,
+      "passedCases": 6,
+      "warnedCases": 0,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "durationSec": 120.4,
+      "metrics": {
+        "coldStartSec": null,
+        "avgFps": null,
+        "low1Fps": null,
+        "p99FrameTimeMs": null,
+        "hitchCount50ms": null,
+        "hitchCount100ms": null,
+        "memMbAvg": null,
+        "memMbPeak": null,
+        "framesAnalyzed": 240,
+        "teleportLoadsSec": []
+      },
+      "ci": {
+        "provider": "github-actions | jenkins | local-cli",
+        "triggeredBy": "repository_dispatch | workflow_dispatch | push-inbox | manual",
+        "workflow": "Ingest Automation Run Data",
+        "jobRunId": "<real-run-id>",
+        "jobRunNumber": 1,
+        "jobUrl": "https://github.com/<owner>/<repo>/actions/runs/<id>",
+        "commitSha": "<sha>",
+        "branch": "main",
+        "runner": "WIN-HOST -> ubuntu-latest",
+        "ingestedAt": "2026-11-20T18:31:05Z"
+      },
+      "cases": [
+        { "caseId": "YS-PROC-01", "name": "进程存活、冷启动与 CrashDump 监控", "status": "PASS", "durationSec": 120.4, "detail": "..." }
+      ],
+      "findings": []
     }
   ]
 }`,
 
   githubDeploySteps: [
     {
-      step: "Step 1 · 已自动生成工作流与免构建标记",
-      detail: "已在本仓库创建 `.github/workflows/deploy-pages.yml` 与 `web/.nojekyll`。本网站为 100% 静态零构建架构（纯 HTML/CSS/JS + SVG），无需 Node/Webpack 打包即可秒级部署。"
+      step: "Step 1 · 已内置 3 条 GitHub Actions 流水线与质量门禁",
+      detail: "• `.github/workflows/ingest-automation-run.yml`：接收真实巡检报告（repository_dispatch / workflow_dispatch / inbox push），校验 Schema v2 与反编造策略后幂等写入 `web/data/automation-runs.json`。\n• `.github/workflows/deploy-pages.yml`：支持独立触发与 `workflow_call` 复用，发布前强制校验数据合规性，秒级更新 GitHub Pages。\n• `.github/workflows/ci-quality-gate.yml`：每次 Push / PR 自动运行 Python 单元测试与 JSON Schema 门禁。"
     },
     {
-      step: "Step 2 · 推送代码到 GitHub 仓库",
-      detail: "在 GitHub 新建仓库（建议设为 Public 免费开启 GitHub Pages，注意先评估是否脱敏简历中的个人敏感信息），本地执行：\n`git add . && git commit -m \"feat: add QA portfolio & automation dashboard\"`\n`git remote add origin https://github.com/<你的用户名>/<仓库名>.git`\n`git push -u origin main`"
+      step: "Step 2 · 本地安装并运行原神非侵入观测工具",
+      detail: "进入 `automation/` 目录安装依赖：\n`cd automation && uv sync --python 3.13 --extra all`\n先体检环境：`uv run qa-observer genshin doctor`\n执行 100% 零输入真实观测：`uv run qa-observer genshin observe --duration 120 --save-store ../web/data/automation-runs.json`"
     },
     {
-      step: "Step 3 · 在 GitHub 仓库开启 Pages（GitHub Actions 源）",
-      detail: "打开 GitHub 仓库 -> Settings -> Pages -> Build and deployment -> Source 选择 **GitHub Actions**。保存后每次 push 修改 `web/` 目录，Action 会在 ~30 秒内自动发布至 `https://<你的用户名>.github.io/<仓库名>/`。"
+      step: "Step 3 · 打通 GitHub CI 自动入库与 Pages 联动",
+      detail: "1. 在 GitHub 仓库 Settings -> Pages -> Source 选择 **GitHub Actions**；\n2. 生成具备当前仓库 `Contents: Write` 权限的 Fine-grained PAT 并设为本地或 Jenkins 环境变量 `GITHUB_TOKEN`；\n3. 运行 `uv run qa-observer genshin observe --duration 120 --ci-push`，CI 自动验签入库、打上 Job 链接并重新部署 Pages！"
     },
     {
-      step: "Step 4 · 零后端串联“自动化数据”与“Bug 反馈”",
-      detail: "• 自动化数据持续更新：本地 Python 非侵入脚本跑完后更新 `web/data/automation-runs.json`，执行 `git push` 即自动刷新线上看板（也支持在网页端直接拖拽/导入本地 JSON 预览）。\n• Bug 反馈真实落库：在本页填写你的 `owner/repo` 后，点击“提交至 GitHub Issue”自动带上结构化模板和标签落库到仓库 Issues，且支持一键拉取仓库真实 Issues 展示！"
+      step: "Step 4 · 零后端串联“真实 CI 数据”与“GitHub Issues 缺陷闭环”",
+      detail: "• 网站展示的所有巡检指标均来源于真实采集或真实录屏回放，未挂载 PresentMon/OCR 的指标如实标注“未采集”，绝不编造数字；\n• 检出的真实 Finding 支持一键转入本页缺陷表单，填写 `supercoko/Game_QA_Experience_Web` 即可直接生成结构化 GitHub Issue 并实时拉取状态。"
     }
   ]
 };

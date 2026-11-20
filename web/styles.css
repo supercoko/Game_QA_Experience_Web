@@ -285,6 +285,42 @@ tr:hover td { background: color-mix(in srgb, var(--primary-soft) 35%, transparen
 .status-PASS { background: var(--success-soft); color: var(--success); }
 .status-WARN { background: var(--warning-soft); color: var(--warning); }
 .status-FAIL { background: var(--danger-soft); color: var(--danger); }
+.status-SKIP { background: var(--bg-subtle); color: var(--text-muted); }
+
+.empty-state {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 26px 22px;
+  text-align: center;
+  background: var(--bg);
+}
+.empty-state h4 { margin: 0 0 8px; font-size: 16px; }
+.empty-state p { margin: 0 auto 14px; max-width: 680px; color: var(--text-secondary); font-size: 13.4px; }
+.ci-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  font-size: 12.6px;
+  margin-bottom: 14px;
+}
+.case-detail-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-top: 6px;
+}
+.mono-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.2px;
+  background: var(--bg-subtle);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
 
 .bug-card {
   background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);

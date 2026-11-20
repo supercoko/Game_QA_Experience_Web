@@ -27,180 +27,86 @@ window.DATA_JOBS = {
 
   jobs: [
     {
-      id: "hg-ue-qa-dev",
-      tier: "S",
-      score: 96,
-      company: "鹰角网络",
-      title: "游戏测试开发工程师-（UE项目）",
-      direction: "测试开发 / 工具平台",
-      expReq: "3年以上游戏测试工具开发",
-      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/451c36a7-fa80-491c-b5d7-318a890d9c6f",
-      hits: [
-        "3.5年经验严丝合缝命中“3年以上游戏测试工具开发”",
-        "强命中“熟悉UE引擎优先”与“独立主导测试工具/自动化开发”",
-        "Vue3+TS+Flask+MongoDB 完整质量平台 + DataTable Diff + FlowGraph 静态检查 + UE Functional Test 全面覆盖岗位职责",
-        "Python / Lua / TypeScript 多语言工程栈优势突出"
-      ],
-      gaps: [
-        "需准备自动化框架可扩展性、平台高可用/异步解耦思路与量化 ROI 数据（拦截配置错误数、节省回归人时）"
-      ],
-      advice: "【第一志愿绝对首选】简历首屏置顶“Vue3+TS+Flask+MongoDB 质量平台架构”与“DataTable Diff / UE Functional Test 流水线”。"
-    },
-    {
       id: "hg-ue-sys",
       tier: "S",
-      score: 91,
+      score: 92,
       company: "鹰角网络",
       title: "资深游戏测试工程师—系统向（UE项目）",
-      direction: "系统测试 + 工具复合",
+      direction: "系统测试 + 工具复合（当前最高胜率首选！）",
       expReq: "3-5年游戏测试",
       url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/76976752-dbc1-49b4-8593-b078b2320556",
       hits: [
-        "3.5年命中“3-5年”，UE项目+构建跟进（Perforce/UGS/Jenkins）直击优先项",
-        "背包/物品/快捷栏/相机全流程系统测试 + 读Lua/查服务端代码定位能力极具说服力",
-        "全栈工具平台（Vue3+Flask+MongoDB）+ Diff/静态检查对纯功能测试形成明显降维打击",
+        "【结合鹰角 UE 测开实测反馈调优！】你的综合能力（系统业务+白盒排查+Vue3/Flask全栈工具+UE构建跟进）放在系统向 QA 是绝对降维打击！",
+        "3.5年命中“3-5年”，UE项目+Perforce/UGS/Jenkins 构建跟进直击优先项",
+        "背包/物品/快捷栏/相机系统测试 + 读Lua/查服务端代码定位能力极具说服力",
         "《恋与深空》家园交互 + 《无限暖暖》多端引导契合“社交/多平台”加分点"
       ],
       gaps: [
-        "缺少独立负责线上运营活动、打包提审与带人管理经验，需用四款游戏线上逃逸案例展示线上风控意识"
+        "必须先按「10. 面评复盘 & 8周路线」练熟背包/相机的四层架构表达，并补齐线上活动与任务/战斗基础测试模型"
       ],
-      advice: "【业务+工具复合第一首选】平衡展示“复杂系统状态一致性/白盒排查”与“自建全栈工具把质量风险前推”。"
-    },
-    {
-      id: "hg-tool-agent",
-      tier: "S",
-      score: 90,
-      company: "鹰角网络",
-      title: "资深游戏测试开发工程师-工具/Agent向",
-      direction: "测试开发 / 平台与AI效能",
-      expReq: "3年以上测试工具开发",
-      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/49b56a1e-ce20-4f17-8c29-703922fb7cc2",
-      hits: [
-        "明确职责为“自动化、性能、压测等工具&平台的产品和开发工作”——Vue3+TS+Flask+MongoDB 全栈平台经验直接拉满匹配度！",
-        "优先项命中“熟悉 UE 相关自动化测试开发，有实际项目落地经验”",
-        "已有 AI 辅助代码重构与平台接入切入点，结合本页非侵入 CV/VLM 巡检 Demo 极具杀伤力"
-      ],
-      gaps: [
-        "AI Agent（问题分析、用例生成、多模态巡检）与压测平台实战需加深，建议基于本页方案做出可展示的 GitHub 作品集"
-      ],
-      advice: "【S级高潜冲刺首选】把本页“非侵入式多端视觉巡检 + LLM 变更影响分析”做成 GitHub Pages 在线 Demo 附在简历里！"
+      advice: "【当前阶段最稳 S 级首选】把“全栈工具+配置Diff”包装成你做系统测试的效率杠杆，而非纯开发履历。"
     },
     {
       id: "mhy-zzz",
-      tier: "A",
-      score: 85,
+      tier: "S",
+      score: 89,
       company: "米哈游",
       title: "游戏测试工程师-绝区零",
-      direction: "系统/玩法 + 工具思维",
+      direction: "业务测试 + 工具思维（极高胜率！）",
       expReq: "至少2年游戏测试",
       url: "https://jobs.mihoyo.com/#/position/947",
       hits: [
-        "不硬卡“完整上线”，2年门槛轻松达标",
-        "强命中“挖掘测试工具需求、具备工具思维”和“策划数据配置检查”",
-        "Vue3+Flask 全栈工具开发 + 背包/相机/状态机打断测试经验与绝区零高度同频"
+        "【综合能力完美主场！】不硬卡完整上线、2年门槛宽松，明确需要“系统/玩法业务测试 + 具备工具思维 + 策划数据配置检查”",
+        "Vue3+TS+Flask+MongoDB 平台 + DataTable Diff + 白盒定位在业务 QA 池里辨识度极高",
+        "《无限暖暖》手柄引导与《恋与深空》交互打断测试同频动作玩法痛点"
       ],
       gaps: [
-        "项目为 Unity 引擎；绝区零对高帧率动作手感、连携/失衡状态机及迷宫玩法理解要求高"
+        "需提前用《绝区零》VR 训练场与 367 条修复公告补齐战斗状态机/连携/失衡和迷宫玩法的业务测试设计表达"
       ],
-      advice: "【米哈游业务+工具首选 #1】强调配置检查/全栈效能工具跨引擎通用，结合绝区零 367 条线上修复案例展现业务敏感度。"
-    },
-    {
-      id: "mhy-yczj-spec",
-      tier: "A",
-      score: 84,
-      company: "米哈游",
-      title: "资深游戏测试工程师（专项向）-源初之结",
-      direction: "自动化/工具平台专项",
-      expReq: "2年以上专项/测开",
-      url: "https://jobs.mihoyo.com/#/position/9398",
-      hits: [
-        "四大方向仅要求“至少一个深入”，候选人完美卡位“自动化 + CI/CD + 质量风险前推（资源/配置检查与卡点）”",
-        "优先项“测试工具/平台自研经验”直接被 Vue3+TS+Flask+MongoDB 平台经历精准命中！",
-        "AI 辅助实践与 2 年门槛非常友好"
-      ],
-      gaps: [
-        "性能/兼容/压测三大方向需通过本页“学习卡片”补齐基础原理与指标认知"
-      ],
-      advice: "【米哈游测开/专项首选 #1】重点突出全栈质量平台自研、CI 自动化闭环与配置左移卡点。"
-    },
-    {
-      id: "mhy-byjl-dev",
-      tier: "A",
-      score: 83,
-      company: "米哈游",
-      title: "游戏测试开发-崩坏：因缘精灵",
-      direction: "全栈效能平台开发（升级推荐！）",
-      expReq: "3年以上测开/平台全栈（Vue/React+后端）",
-      url: "https://jobs.mihoyo.com/#/position/9576",
-      hits: [
-        "【更新简历后大幅跃升！】前端明确要求“熟悉 Vue 或 React 任一框架”——Vue 3 + TypeScript 精准命中！",
-        "后端要求“熟练掌握至少一门编程语言（Golang 优先）”——Python + Flask + MongoDB 具备完整全栈设计开发落地经历",
-        "覆盖“分支管理、资源管理、质量保障痛点 -> 平台化落地与跨团队接入”（单据卡点、Diff、Checklist、反馈闭环）"
-      ],
-      gaps: [
-        "后端非 Golang 且基于开源框架整合，面试会深挖 Flask 异步并发架构、MongoDB 索引设计与前端工程化细节，需提前攻克学习卡片"
-      ],
-      advice: "【米哈游平台测开黑马岗】若对全栈平台开发有强烈兴趣非常值得投递！重点突出从 0 整合到持续迭代及跨团队推广能力。"
+      advice: "【米哈游第一志愿首选】定位“重业务逻辑+强工具杠杆”，面试前务必打磨背包/相机四层表达+战斗基础测试模型。"
     },
     {
       id: "mhy-sr",
-      tier: "A",
-      score: 83,
+      tier: "S",
+      score: 88,
       company: "米哈游",
       title: "游戏测试工程师-崩坏：星穹铁道",
-      direction: "综合功能 + 自动化脚本",
+      direction: "综合功能 + Python/Lua自动化",
       expReq: "至少2年游戏测试",
       url: "https://jobs.mihoyo.com/#/position/1215",
       hits: [
-        "明确要求“编写自动化测试脚本”及“熟悉 Python/Lua、数据库操作（MongoDB）”",
-        "全栈 Web 平台 + 白盒查日志代码定位在纯业务 QA 竞争者中优势极大",
-        "2年经验门槛友好，无管理年限限制"
+        "【极度契合“偏综合”定位！】明确要业务测试 + 编写自动化脚本 + Python/Lua + 数据库（MongoDB）",
+        "回合制系统/养成/活动比重极高，对动作手感和硬核战斗帧事件门槛相对低于纯 ACT 岗，完美避开你的战斗短板！",
+        "白盒查服务端日志/代码定位与 1,613 条崩铁公告复盘直接拉满加分"
       ],
       gaps: [
-        "缺少线上支付系统实操，且偏 Unity 技术栈"
+        "补齐商业化支付/掉单补单、跨零点活动结算与弱网重连测试思路"
       ],
-      advice: "【米哈游稳健高匹配】重点讲 Python/Lua + 自动化 + 白盒定位，并用崩铁 1,613 条公告里的重连丢奖励、跨入口越权补足线上视野。"
+      advice: "【最扬长避短的 S 级首选！】系统与活动权重高、对纯研发算法要求低，非常适合作为突破大厂的王牌岗位。"
     },
     {
       id: "mhy-xbgd",
-      tier: "A",
-      score: 82,
+      tier: "S",
+      score: 87,
       company: "米哈游",
       title: "游戏测试工程师-星布谷地",
-      direction: "系统/社交 + 自动化",
+      direction: "系统/社交/生活模拟 + 自动化",
       expReq: "至少3年游戏测试",
       url: "https://jobs.mihoyo.com/#/position/5748",
       hits: [
-        "3.5年刚好达标3年要求；Python/Lua + 数据库 + 自动化脚本占比要求全面匹配",
-        "背包/物品/采集物自动化 + 《恋与深空》家园单双人交互测试与模拟经营社交高度契合"
+        "【高度避开战斗短板！】生活模拟/家园社交核心正是物品、背包、采集物、双人交互与系统一致性——与你全部真实经历 100% 重叠！",
+        "3.5年精准达标 3 年要求，Python/Lua + MongoDB + 自动化脚本占比要求全中",
+        "《恋与深空》家园单双人交互 + 采集物自动化 + 背包堆叠边界简直是对口模板"
       ],
       gaps: [
-        "缺少支付系统与完整大型项目上线经历"
+        "补齐支付系统与线上发版基础认知，把背包和家园交互讲成体系化测试设计"
       ],
-      advice: "【米哈游高契合备选】重点放大物品/背包堆叠边界、采集物交互以及双人家园动作打断与状态同步的测试深度。"
-    },
-    {
-      id: "hg-ark-dev",
-      tier: "A",
-      score: 81,
-      company: "鹰角网络",
-      title: "资深游戏测试开发工程师（明日方舟）",
-      direction: "测开 / Web工具平台（升级推荐！）",
-      expReq: "3年以上测开，熟悉Web前后端+引擎",
-      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/baa55cd3-5a36-4678-b69d-a6a0fb508f7a",
-      hits: [
-        "【更新简历后跃升至 A 级！】明确要求“熟悉常见的 Web 前后端开发框架”+“独立主导测试工具开发”——Vue3+TS+Flask+MongoDB 精准命中！",
-        "3年以上工具开发与自动化测试经验完全达标"
-      ],
-      gaps: [
-        "引擎偏好 Unity 且加分压测工具，同等条件下鹰角内部仍优先投 UE 测开与工具/Agent向"
-      ],
-      advice: "【鹰角测开强力备选】展示全栈工具平台落地能力，同时通过学习卡片补齐基础压测与 Unity 自动化差异认知。"
+      advice: "【隐藏黑马 S 级首选！】几乎零战斗门槛，你的物品背包+采集物+双人家园交互经验全都是正中靶心的核心资产！"
     },
     {
       id: "mhy-ys",
       tier: "A",
-      score: 80,
+      score: 84,
       company: "米哈游",
       title: "游戏测试工程师-原神",
       direction: "大世界系统 + 配置检查",
@@ -208,30 +114,116 @@ window.DATA_JOBS = {
       url: "https://jobs.mihoyo.com/#/position/3550",
       hits: [
         "2年门槛达标，强调“策划数据配置检查”、“自动化框架”、“数据库操作”与“深入理解技术实现原理”",
-        "背包、相机、采集物自动化与大世界系统测试思路一脉相承"
+        "背包、相机、采集物自动化 + 2,022 条原神线上公告复盘形成极强说服力"
       ],
       gaps: [
-        "Unity 引擎实操较少；原神对跨版本长线回归、多人联机同步和历史债务防回归要求极高"
+        "需提前补齐大世界任务占用互斥防软锁、多人联机同步和超长线回归风控表达"
       ],
-      advice: "【米哈游经典核心岗】结合原神 2,022 条线上逃逸案例（断线重连、任务占用互斥、背包上限配置）展现超长线大世界质量保障理解。"
+      advice: "【米哈游核心业务池】强调配置左移、白盒定位和针对原神 2,022 条线上逃逸案例的深度复盘。"
     },
     {
       id: "mhy-byjl-qa",
       tier: "A",
-      score: 79,
+      score: 83,
       company: "米哈游",
       title: "游戏测试工程师-崩坏：因缘精灵",
-      direction: "新项目综合测试",
+      direction: "新项目综合业务 + 工具建设",
       expReq: "至少1年游戏测试",
       url: "https://jobs.mihoyo.com/#/position/5300",
       hits: [
-        "新项目早期建设阶段，最需要能搭建配置 Diff、静态检查、Web 效能工具与自动化冒烟的多面手",
-        "Python/Lua + MongoDB + 在研项目 0-1 质量体系搭建经验天然匹配"
+        "在研新项目最需要能干系统业务又能搭质量平台/配置 Diff 的“综合多面手”！",
+        "1 年起门槛友好，可务实对标 2-3 年中级/中高级业务 QA，先拿大厂完整上线周期入场券"
       ],
       gaps: [
-        "职级门槛较低（1年+），需确认定级与薪资预期是否匹配 3.5 年全栈测开/资深测试水平"
+        "需与 HR 对齐职级预期，确认成长空间与核心模块历练机会"
       ],
-      advice: "【稳健保底/在研红利】可优先投同项目的“游戏测试开发-崩坏：因缘精灵（A级 83%）”。"
+      advice: "【极具性价比的务实突破口】正好匹配你的“综合型”标签，且能跟完整 0-1 上线过程彻底补齐履历短板。"
+    },
+    {
+      id: "mhy-yczj-spec",
+      tier: "A",
+      score: 80,
+      company: "米哈游",
+      title: "资深游戏测试工程师（专项向）-源初之结",
+      direction: "自动化/工具平台专项",
+      expReq: "2年以上专项/测开",
+      url: "https://jobs.mihoyo.com/#/position/9398",
+      hits: [
+        "四大方向仅要求“至少一个深入”，主打“自动化 + CI/CD + 质量风险前推（资源/配置检查）+ 全栈工具自研”",
+        "相对纯测开更看重 QA 质量落地思维，但仍会有一定工程/框架深度追问"
+      ],
+      gaps: [
+        "需补齐性能/兼容/压测三大专项的基本原理卡片，并打磨自动化框架可扩展性架构"
+      ],
+      advice: "【专项向备选】建议完成第 5-6 周非侵入式自动化作品集后再投，工程说服力倍增。"
+    },
+    {
+      id: "hg-ue-qa-dev",
+      tier: "B",
+      score: 72,
+      company: "鹰角网络",
+      title: "游戏测试开发工程师-（UE项目）【已实测：需纯测开】",
+      direction: "纯测开（实测反馈修正）",
+      expReq: "3年以上纯测试开发",
+      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/451c36a7-fa80-491c-b5d7-318a890d9c6f",
+      hits: [
+        "UE 工具链、Vue3+TS+Flask+MongoDB、DataTable Diff、FlowGraph 静态检查方向高度对口"
+      ],
+      gaps: [
+        "【真实面试反馈】该岗要求“纯测开”（算法、后端工程深度、独立底层框架/UE C++ 插件开发），而当前履历偏“业务+工具综合型”"
+      ],
+      advice: "【已实测 · 归档复盘】切忌短期内盲目重复撞同类纯测开岗；若走纯测开，请按「路线 B」沉淀 4-6 个月算法与底层开发后再战。"
+    },
+    {
+      id: "hg-tool-agent",
+      tier: "B",
+      score: 71,
+      company: "鹰角网络",
+      title: "资深游戏测试开发工程师-工具/Agent向",
+      direction: "纯测开 / 平台与AI（受纯测开门槛影响）",
+      expReq: "3年以上纯测试开发",
+      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/49b56a1e-ce20-4f17-8c29-703922fb7cc2",
+      hits: [
+        "Vue3+TS+Flask+MongoDB 全栈平台与 UE 自动化背景高度相关"
+      ],
+      gaps: [
+        "参照鹰角 UE 测开反馈，鹰角测开序列普遍要求纯开发工程硬实力，且此岗还叠加了 Agent/多模态工程落地要求"
+      ],
+      advice: "【暂缓硬撞】等做出非侵入 VLM/Agent 开源作品并补齐算法+异步后端工程后再评估。"
+    },
+    {
+      id: "mhy-byjl-dev",
+      tier: "B",
+      score: 70,
+      company: "米哈游",
+      title: "游戏测试开发-崩坏：因缘精灵",
+      direction: "全栈效能平台纯开发（警惕纯研发门槛）",
+      expReq: "3年以上全栈平台开发（Golang优先+Vue/React）",
+      url: "https://jobs.mihoyo.com/#/position/9576",
+      hits: [
+        "Vue 3 + TypeScript + Python + Flask + MongoDB 平台开发直接命中技术面"
+      ],
+      gaps: [
+        "【结合鹰角纯测开反馈警示】此岗偏向纯软件全栈工程师（系统架构设计、高并发、算法、Golang 优先），若当前工程底层尚未补齐，容易重演“偏综合不够纯开发”的结局"
+      ],
+      advice: "【谨慎评估】优先投同项目的业务岗（因缘精灵游戏测试 A级）；仅在补齐后端架构/算法后冲击此岗。"
+    },
+    {
+      id: "hg-ark-dev",
+      tier: "B",
+      score: 69,
+      company: "鹰角网络",
+      title: "资深游戏测试开发工程师（明日方舟）",
+      direction: "纯测开 / Web工具平台",
+      expReq: "3年以上纯测开 + Unity",
+      url: "https://app.mokahr.com/social-recruitment/hypergryph/26325?locale=zh-CN#/job/baa55cd3-5a36-4678-b69d-a6a0fb508f7a",
+      hits: [
+        "Vue3+TS+Flask+MongoDB Web 前后端框架经验直接命中"
+      ],
+      gaps: [
+        "同属鹰角纯测开序列，且偏好 Unity 引擎与压测底层框架，短期内胜率低于业务+工具复合岗"
+      ],
+      advice: "【暂缓】先拿业务+工具复合型 Offer 站稳脚跟，或走路线 B 补强纯开发实力。"
     },
     {
       id: "hg-agent-dev",

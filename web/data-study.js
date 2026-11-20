@@ -35,6 +35,12 @@ window.DATA_STUDY = {
       priority: "P2 拓展",
       why: "把《无限暖暖》PS5/手柄支援经历体系化，覆盖跨端大作（终末地/原神/绝区零）多端底线",
       focus: "PS5 TRC / Xbox XR 基础合规（手柄断连/休眠/账号切换/输入法）、机型芯片矩阵、Shader编译卡顿(PSO)"
+    },
+    {
+      cat: "战斗/任务/商业化核心业务补齐",
+      priority: "P0 破局必补",
+      why: "直接针对“无战斗/任务经历 + 网易面评经验能力缺失 + 系统侧说不清”，用通用业务建模快速补齐大厂 QA 必备底盘",
+      focus: "UE GAS 战斗时间轴与打断、伤害乘区与快照、任务 DAG 与 NPC 占用互斥防软锁、抽卡保底/掉单补单/跨零点活动结算"
     }
   ],
 
@@ -241,6 +247,72 @@ window.DATA_STUDY = {
       front: "什么是游戏本地化（L10n）测试中的“伪本地化（Pseudo-Localization）”？它能提前拦截哪些多语言 Bug？",
       back: "在正式翻译完成前，用脚本把中文/英文自动拉长 30%~50% 并加上特殊重音符和首尾标记（如 `[Šţàŕţ Ġàɱè~~~]`）灌进包体跑一遍：\n• 立刻暴露 UI 文本框未做自适应导致的截断、换行重叠与爆框（德语/俄语/法语普遍比中文长 2 倍）；\n• 立刻暴露写死在代码里未走多语言表的硬编码字符串（没变伪字符的都是漏配）；\n• 立刻暴露字体库缺字（方块豆腐块 □）和占位符 `%s / {0}` 顺序错乱。",
       golden: "面试金句：崩铁单版本曾修 13 国语言文本，靠伪本地化 + 静态长度检查左移，比人肉切 13 种语言点 UI 效率高十倍。"
+    },
+
+    // 7. 战斗/任务/商业化核心业务补齐 (8)
+    {
+      id: "fc-biz-1",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "面试必背",
+      front: "没专门测过战斗系统，如果面试官问“给你一个动作游戏新角色，你怎么设计战斗测试方案”，按哪 6 个维度答最专业？",
+      back: "直接甩出 6 支柱战斗测试模型：\n1) 技能时间轴与打断窗口：前摇/判定帧/后摇/闪避取消/切角连携打断/抗打断等级；\n2) Buff 与状态机收口（UE GAS 思维）：叠加规则、刷新机制、受控/死亡/离队/退本强制清除；\n3) 索敌与碰撞判定：高低差、墙角、多目标切锁、目标瞬移隐身后的目标丢失；\n4) 数值乘区与描述核对：暴击/增伤/抗性/易伤乘区、快照（Snapshot） vs 动态结算、命座/潜能文案与代码 100% 一致；\n5) 怪物 AI 与阶段转场：拉脱边缘回血、转阶段无敌帧、召唤物归属；\n6) 表现与同步：顿帧/震屏/特效音效销毁、弱网与联机同步。",
+      golden: "面试金句：测战斗不是把技能按一遍，核心是抓“临界帧打断、状态机清理、碰撞丢失和数值乘区与描述一致性”。"
+    },
+    {
+      id: "fc-biz-2",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "UE加分项",
+      front: "UE 项目中经常听到的 GAS（Gameplay Ability System）是什么？它对测试排查战斗与系统 Bug 有什么指导意义？",
+      back: "GAS 是 UE 官方用于技能/属性/Buff 的标准框架，四大核心组件：\n• AttributeSet（属性集）：如 HP/MaxHP/ATK，区分 BaseValue（基础值）和 CurrentValue（受 Buff 影响后的当前值）；\n• GameplayAbility（技能能力）：控制技能激活、消耗（Cost）、冷却（Cooldown）与取消；\n• GameplayEffect（效果/Buff）：即时（Instant）、持续（Duration）与无限（Infinite）三种生命周期；\n• GameplayTag（标签）：决定状态互斥（如拥有 `State.Dead` 标签时禁止激活 `Ability.UseItem`）。\n\n测试排查指导：遇到“回血不满/离队残留/末帧异常”，顺着这四层查——是 BaseValue 没更新、Infinite Effect 离队没 Remove，还是 Tag 阻止了同步逻辑！",
+      golden: "面试金句：懂 UE GAS 的 Attribute/Effect/Tag 机制，哪怕没专职测过战斗，也能一眼看透属性不同步和 Buff 残留的底层根因。"
+    },
+    {
+      id: "fc-biz-3",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "高频考题",
+      front: "伤害测试中常说的“快照机制（锁面板 Snapshot）”和“实时动态结算”有什么区别？怎么测？",
+      back: "• 快照机制（Snapshot）：召唤物/脱手技能/持续 DOT 在**释放瞬间**锁定角色当时的攻击力、暴击、增伤面板，哪怕后续角色切后台、增益 Buff 消失，剩余跳数仍按释放瞬间的高面板结算；\n• 动态结算（Dynamic）：每次造成伤害时实时读取角色当前最新面板，Buff 到期伤害立刻下降。\n• 必测用例：① 先叠满 Buff 放脱手技 -> 等 Buff 过期后看每跳伤害是否变化；② 先放脱手技再开 Buff -> 看后续伤害是否吃到加成；③ 核对技能描述与策划约定完全一致。",
+      golden: "面试金句：测脱手技能和召唤物必测“先开 Buff 后放技能”和“先放技能后开 Buff”正反两组，专门抓锁面板配置错误。"
+    },
+    {
+      id: "fc-biz-4",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "面试必背",
+      front: "没有专职测过任务系统，面试问“大世界任务最容易出什么线上 P0 Bug？你怎么设计测试与防软锁方案？”",
+      back: "大世界任务四大高危区：\n1) 状态机 DAG 异常中断：任务进行中死亡、传送离开、杀进程重登、断网重连、放弃重置，恢复后是否能无缝续接而不丢目标怪/卡机关；\n2) 多任务世界资源占用互斥（原神经典大坑）：同时接取共享同一 NPC 或同一区域的主线、支线、邀约任务，是否互相锁死；\n3) 临时状态与试用编队污染：任务塞入试用角色、替换临时交互键，中途退出或完成后是否彻底恢复玩家自有编队；\n4) 结合你的王牌：在 FlowGraph 静态检查中用有向图规则拦住悬空节点、断链与“进入禁输入态缺少配对恢复出口”。",
+      golden: "面试金句：任务系统防软锁靠“动态测中断恢复+多任务占用互斥，静态靠 FlowGraph 图拓扑校验兜底断链与输入锁死”。"
+    },
+    {
+      id: "fc-biz-5",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "高频考题",
+      front: "商业化支付测试中最核心的“掉单与补单”是怎么回事？测试支付系统必须守住哪 5 条底线？",
+      back: "• 掉单成因：玩家在苹果/谷歌/微信/PSN 渠道扣款成功，但客户端刚好闪退/断网，或渠道回调服务端超时，导致“扣了钱没发货”。\n• 补单机制：客户端本地缓存未核销的收据（Receipt），下次启动/重连或服务端定时主动向渠道对账查询，核验通过后补发并标记该订单号已消耗。\n• 支付 5 底线：① 掉单重登必须稳定补发；② 同一订单回调重发 10 次必须幂等只发 1 次（严防刷单）；③ 跨平台付费货币合规隔离（如 PS5 与 PC/移动端付费晶石展示与消费边界）；④ 首充双倍/限购礼包在弱网并发购买下不超买；⑤ 退款封禁/扣除负资产风控。",
+      golden: "面试金句：测支付核心就两个字——“不漏”（弱网/强杀掉单稳定补发）和“不重”（渠道重试与并发请求严格按订单号幂等）。"
+    },
+    {
+      id: "fc-biz-6",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "高频考题",
+      front: "抽卡（卡池）与限时运营活动，上线前最容易翻车的时间与概率边界有哪些？",
+      back: "1) 抽卡系统：小保底/大保底临界点（如第 79/80/90 抽）、跨同类型卡池保底计数继承、十连中途出金后的保底重置计数、抽卡历史记录延迟与服务端落盘核对、高并发抽卡防扣一次抽两次；\n2) 限时运营活动：修改服务端时间模拟 5 个临界点——活动开启前 1 分钟（入口不提前露）、跨自然日/凌晨 4 点刷新（日常任务重置）、活动结束前 10 秒进入关卡并在结束后结算（奖励防吞/防越权）、活动结束后专属活动货币自动回收转换邮件、以及跨时区（UTC+8 vs UTC-5）倒计时显示一致。",
+      golden: "面试金句：测限时活动最狠的手段是“压临界时间点”——卡着凌晨刷新和活动结束前 10 秒进本结算，专门抓跨天状态与奖励丢失。"
+    },
+    {
+      id: "fc-biz-7",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "表达必背",
+      front: "面试官问“你做了三年系统测试，讲讲你负责的背包系统”，怎样回答才能摆脱“只会点按钮”的 1 年执行感？",
+      back: "用「四层架构表达法」替代流水账：\n1) 先画系统四层骨架：静态配置层 -> 服务端存储层（唯一实例 vs 堆叠聚合，快捷栏只是引用映射）-> 增量/全量同步层 -> 客户端视图层；\n2) 再抛 4 条质量红线：资产安全（溢出/弱网防刷）、双视图一致性、哨兵值边界（-1/0/99999）、跨状态合法性；\n3) 亮出白盒与工具实证：读 Lua 揪出 `-1` 无限堆叠遗漏 + 查服务端代码定位死亡升级并发 + DataTable Diff 左移；\n4) 落脚线上防回归：关联原神上限误配与钥匙未移除案例，说明自己如何沉淀长效 Checklist。",
+      golden: "面试金句：先讲架构和数据流，再讲风险红线，最后用白盒案例和工具闭环收尾——同样的经历瞬间从 1 年执行变成 3 年资深！"
+    },
+    {
+      id: "fc-biz-8",
+      cat: "战斗/任务/商业化核心业务补齐",
+      difficulty: "面试必背",
+      front: "当面试官委婉质疑“你之前一直做在研项目/没做过战斗任务，能力偏综合不够专精”时，怎么不卑不亢高情商破局？",
+      back: "四步破局公式（坦诚 + 重定位 + 证据 + 价值）：\n1) 坦诚不辩解：“确实，前司主项目在研且分工偏基础系统+效率工具，让我少了完整公测周期和专职战斗任务的历练，这也是我这次看机会特别看重成熟团队体系的原因”；\n2) 重塑“综合”为优势：“但我认为在业务 QA 岗里，‘能把系统状态机抠到底、能读 Lua/服务端代码定因、还能自己用 Vue3+Flask+Python 写工具把高频风险左移’不是杂而不精，而是高杠杆的复合能力”；\n3) 拿出硬证据：展示你主动复盘 4,134 条头部游戏线上公告、梳理的战斗/任务测试模型，以及 GitHub Pages 非侵入巡检作品集；\n4) 明确落位表态：“入职后我愿意踏实从核心业务回归做起，先吃透项目架构守好交付底线，再用工具思维帮团队持续降本增效。”",
+      golden: "面试金句：在纯测开面里“综合”是短板，在业务 QA 面里“业务深度 + 白盒能力 + 全栈工具杠杆”就是稀缺王牌！"
     }
   ],
 
@@ -271,18 +343,29 @@ window.DATA_STUDY = {
     gameScenarios: [
       {
         game: "原神（PC 线上客户端）",
-        badge: "大世界 · UI/相机/热切换",
+        gameKey: "genshin",
+        implStatus: "已实现 · v1.0 可运行",
+        badge: "已实现 · 大世界 / UI / 热切换",
+        configPath: "automation/configs/genshin.yaml",
+        adapterPath: "automation/src/qa_observer/games/genshin.py",
+        cliHint: "cd automation && uv run qa-observer genshin doctor && uv run qa-observer genshin observe --duration 120 --ci-push",
         scenarios: [
-          "冷启动 -> 版本检查 -> 进大世界全链路耗时基线与黑屏/卡死（SSIM > 0.999 持续 15s）自动告警",
-          "主菜单 / 背包 / 角色 / 冒险手册 / 拍照界面遍历：OCR 检测文本溢出、未翻译 Key 及模型加载空白",
-          "PC 键鼠 ↔ 手柄切换视觉验收：通过模板匹配检测界面右下角/底部按键 Prompt 是否同步刷新、界面是否残影",
-          "固定锚点跑图/传送加载期间 PresentMon 采集 1% Low FPS 与 FrameTime > 50ms 卡顿毛刺统计"
+          "YS-PROC-01：监听 YuanShen.exe / GenshinImpact.exe 冷启动耗时、进程存活及 miHoYo/Windows CrashDump 异常转储",
+          "YS-PERF-01：挂载 Intel PresentMon（纯外部 ETW）采集真实 Avg FPS / 1% Low / P99 / >50ms 毛刺 + psutil 内存水位与泄漏斜率（未挂载时如实留空）",
+          "YS-VIS-01：DXGI/MSS 帧流实时检测连续黑屏、纯色渲染异常、画面冻结（MAD）与 Unity 紫红缺贴图（HSV），自动保存异常截图证据",
+          "YS-TELEPORT-01 / YS-OCR-01 / YS-INPUT-01：追踪七元素白屏传送耗时、RapidOCR 检测未翻译 Key/文本贴边溢出/重连弹窗，并支持模板+OCR 键鼠↔手柄热切换验收",
+          "额外支持 `active-ui`（安全区 ESC/B/C/F1/M 公共界面遍历，F12 急停）与 `replay`（离线分析真实 MP4 录屏/截图目录 + PresentMon CSV）"
         ],
-        mappedOnlineBug: "对应原神 7.1/7.2 手柄浏览异常、模型/UI 表现异常、重连后状态恢复"
+        mappedOnlineBug: "对应原神 7.1/7.2 手柄浏览异常、模型/UI 表现异常、传送加载卡死、重连后状态恢复"
       },
       {
         game: "崩坏：星穹铁道（PC 线上客户端）",
-        badge: "多系统 UI · 弱网重连",
+        gameKey: "starrail",
+        implStatus: "架构已预留 · 待接入",
+        badge: "待接入 · 多系统 UI / 弱网重连",
+        configPath: "automation/configs/starrail.yaml (规划中)",
+        adapterPath: "qa_observer.games.starrail (复用核心引擎)",
+        cliHint: "复用 qa_observer 核心采集/OCR/PresentMon/CI 模块，下一步接入 StarRailAdapter",
         scenarios: [
           "多系统界面巡检（手机菜单 / 角色 / 遗器 / 指南 / 活动页）：OCR + 布局边缘检测，批量抓取文本截断、错位、红点残影",
           "多语言切换验证（简中 ↔ 英文/日文）：同界面双语截图自动对比与超长文本溢出预警",
@@ -293,7 +376,12 @@ window.DATA_STUDY = {
       },
       {
         game: "绝区零（PC 线上客户端）",
-        badge: "高帧率性能 · 多分辨率",
+        gameKey: "zzz",
+        implStatus: "架构已预留 · 待接入",
+        badge: "待接入 · 高帧率性能 / 多分辨率",
+        configPath: "automation/configs/zzz.yaml (规划中)",
+        adapterPath: "qa_observer.games.zzz (复用核心引擎)",
+        cliHint: "复用 qa_observer 核心采集/PresentMon/VLM/CI 模块，下一步接入 ZzzAdapter",
         scenarios: [
           "VR 训练场 / 街区固定视角 PresentMon 高精度帧时间分布分析（P50 / P95 / P99 / 1% Low FPS 对比不同版本劣化）",
           "16:9 / 21:9 带鱼屏 / 窗口化动态缩放下的 UI 裁切检测（边缘像素裁剪 & 关键按钮可见性 OCR 校验）",
@@ -304,7 +392,12 @@ window.DATA_STUDY = {
       },
       {
         game: "明日方舟：终末地（PC 线上客户端）",
-        badge: "启动稳定 · 地图与手柄",
+        gameKey: "endfield",
+        implStatus: "架构已预留 · 待接入",
+        badge: "待接入 · 启动稳定 / 地图与手柄",
+        configPath: "automation/configs/endfield.yaml (规划中)",
+        adapterPath: "qa_observer.games.endfield (复用核心引擎)",
+        cliHint: "复用 qa_observer 核心进程监听/OCR/模板匹配/CI 模块，下一步接入 EndfieldAdapter",
         scenarios: [
           "版本更新日冷启动 + 热更新全流程监控：自动捕获启动闪退、进程非正常退出码与 CrashDump 文件",
           "地图打开 / 缩放 / 标记筛选切换视觉巡检：检测底图丢失（纯色面积占比超阈值）、图标闪烁（帧间方差异常）",
@@ -314,31 +407,31 @@ window.DATA_STUDY = {
         mappedOnlineBug: "对应终末地启动闪退、地图底图/标记异常、手柄热切换倒计时消失、编队字符上限异常"
       }
     ],
-    pythonSnippet: `# non_intrusive_runner.py — 零侵入外部观测与标准 JSON 报告输出骨架
-import json, time, datetime
-import cv2, numpy as np, psutil  # 另可配合 dxcam / rapidocr_onnxruntime / PresentMon CLI
+    pythonSnippet: `# 原神非侵入自动化工具（automation/）实际运行与 CI 上报命令
 
-def detect_visual_anomaly(frame_bgr):
-    """确定性 CV 检查：黑屏 / 纯色卡死 / 紫红缺贴图（UE/Unity 常见 Missing Material）"""
-    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-    mean_luma, std_luma = float(gray.mean()), float(gray.std())
-    if mean_luma < 5.0 and std_luma < 3.0:
-        return {"pass": False, "type": "BLACK_SCREEN", "detail": f"mean={mean_luma:.1f}, std={std_luma:.1f}"}
-    hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
-    # 紫红色缺贴图色域 (H: 140~165, S>150, V>150)
-    magenta_mask = cv2.inRange(hsv, np.array([140, 150, 150]), np.array([165, 255, 255]))
-    magenta_ratio = float(np.count_nonzero(magenta_mask)) / magenta_mask.size
-    if magenta_ratio > 0.03:
-        return {"pass": False, "type": "MISSING_TEXTURE_MAGENTA", "detail": f"ratio={magenta_ratio:.2%}"}
-    return {"pass": True, "type": "OK", "detail": f"luma={mean_luma:.1f}"}
+# 1. 安装依赖（Windows 推荐 uv + Python 3.13）
+cd automation
+uv sync --python 3.13 --extra all
 
-def export_run_report(run_record, output_path="web/data/automation-runs.json"):
-    """追加写入标准 JSON，git push 后 GitHub Pages 看板自动展示"""
-    with open(output_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    data["runs"].insert(0, run_record)
-    data["updatedAt"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)`
+# 2. 环境体检（检查 DXGI/MSS/OCR/PresentMon/权限与实时原神窗口）
+uv run qa-observer genshin doctor
+
+# 3. 100% 零输入纯被动观测（默认推荐，支持 --wait-launch 测冷启动）
+uv run qa-observer genshin observe --duration 120 --game-dir "D:\\Genshin Impact"
+
+# 4. 离线回放真实录屏 + PresentMon CSV（同样产出真实可校验报告）
+uv run qa-observer genshin replay \\
+  --input "D:\\Captures\\genshin_session.mp4" \\
+  --presentmon-csv "D:\\Captures\\presentmon.csv" \\
+  --version "7.2"
+
+# 5. 安全区公共界面遍历巡检（ESC/B/C/F1/M，按 F12 随时紧急中止）
+uv run qa-observer genshin active-ui --confirm-safe-zone
+
+# 6. 一键推送真实报告到 GitHub Actions CI 自动入库并重新部署 Pages
+$env:GITHUB_TOKEN = "github_pat_xxx"
+uv run qa-observer ci push \\
+  --report reports/runs/<RUN-ID>/report.json \\
+  --repo supercoko/Game_QA_Experience_Web`
   }
 };

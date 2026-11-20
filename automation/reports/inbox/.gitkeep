@@ -1,0 +1,1 @@
+# Drop validated real run JSON reports here and push to trigger .github/workflows/ingest-automation-run.yml

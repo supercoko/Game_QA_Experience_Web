@@ -1,0 +1,114 @@
+name: Ingest Automation Run Data
+
+on:
+  repository_dispatch:
+    types: [automation-run-report]
+  workflow_dispatch:
+    inputs:
+      run_json:
+        description: "真实单轮 report.json 内容（严禁编造/mock数据）"
+        required: false
+        type: string
+        default: ""
+      report_path:
+        description: "仓库内真实 report.json 路径（选填，例如 automation/reports/inbox/RUN-YS-xxx.json）"
+        required: false
+        type: string
+        default: ""
+      trigger_note:
+        description: "本次触发备注（选填）"
+        required: false
+        type: string
+        default: ""
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "automation/reports/inbox/*.json"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "automation-data-ingest"
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+      commit_sha: ${{ steps.commit.outputs.sha }}
+      last_run_id: ${{ steps.merge.outputs.last_run_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate & merge real automation run payload
+        id: merge
+        env:
+          DISPATCH_PAYLOAD: ${{ github.event_name == 'repository_dispatch' && toJson(github.event.client_payload) || '' }}
+          MANUAL_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.run_json || '' }}
+          MANUAL_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.report_path || '' }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            python3 automation/scripts/ci_ingest.py ingest \
+              --store web/data/automation-runs.json \
+              --payload-env DISPATCH_PAYLOAD \
+              --trigger repository_dispatch
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "$MANUAL_PATH" ]; then
+              python3 automation/scripts/ci_ingest.py ingest \
+                --store web/data/automation-runs.json \
+                --payload-file "$MANUAL_PATH" \
+                --trigger workflow_dispatch
+            else
+              python3 automation/scripts/ci_ingest.py ingest \
+                --store web/data/automation-runs.json \
+                --payload-env MANUAL_JSON \
+                --trigger workflow_dispatch
+            fi
+          else
+            python3 automation/scripts/ci_ingest.py ingest \
+              --store web/data/automation-runs.json \
+              --inbox-dir automation/reports/inbox \
+              --trigger push-inbox \
+              --clean-inbox
+          fi
+
+      - name: Verify updated store schema & real-data-only policy
+        run: python3 automation/scripts/ci_ingest.py validate --store web/data/automation-runs.json
+
+      - name: Commit & push updated web/data/automation-runs.json
+        id: commit
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data/automation-runs.json automation/reports/inbox/
+          if git diff --cached --quiet; then
+            echo "No staged diff after merge."
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            RUN_ID="${{ steps.merge.outputs.last_run_id }}"
+            git commit -m "ci(data): ingest real automation run ${RUN_ID:-batch}"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: ingest
+    if: needs.ingest.outputs.changed == 'true'
+    uses: ./.github/workflows/deploy-pages.yml
+    with:
+      ref: ${{ needs.ingest.outputs.commit_sha }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

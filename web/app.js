@@ -2,8 +2,9 @@
   const STORAGE_KEY_MASTERY = "qa_prep_mastered_v1";
   const STORAGE_KEY_THEME = "qa_prep_theme_v1";
   const STORAGE_KEY_FC = "qa_prep_fc_status_v1";
-  const STORAGE_KEY_BUGS = "qa_prep_bugs_v1";
+  const STORAGE_KEY_BUGS = "qa_prep_bugs_v2";
   const STORAGE_KEY_GH = "qa_prep_github_repo_v1";
+  const STORAGE_KEY_ROADMAP = "qa_prep_roadmap_done_v1";
 
   function safeGet(k, fallback) {
     try { return localStorage.getItem(k) ?? fallback; } catch { return fallback; }
@@ -11,6 +12,9 @@
   function safeSet(k, v) {
     try { localStorage.setItem(k, v); } catch {}
   }
+
+  const DEFAULT_REPO = window.DATA_HUB.defaultRepo || "supercoko/Game_QA_Experience_Web";
+  const FORBIDDEN_ORIGINS = new Set(["mock", "demo", "fake", "synthetic", "simulated", "sample", "fabricated"]);
 
   const state = {
     activeTab: "overview",
@@ -25,14 +29,26 @@
     fcIndex: 0,
     fcFlipped: false,
     fcStatus: JSON.parse(safeGet(STORAGE_KEY_FC, "{}")), // { id: 'hard' | 'fuzzy' | 'mastered' }
-    // Automation Hub
+    // Roadmap checklist
+    roadmapDone: new Set(JSON.parse(safeGet(STORAGE_KEY_ROADMAP, "[]"))),
+    // Automation Hub & CI Ingestion (Strict Real-Data-Only)
     autoData: window.DATA_HUB.defaultAutomationData,
-    autoSource: "内置标准 Schema 演示集（托管至 GitHub Pages 时自动 fetch ./data/automation-runs.json）",
+    autoSource: "仓库基线：web/data/automation-runs.json（仅真实数据，已清零编造演示集）",
     autoGameFilter: "ALL",
+    expandedRuns: new Set(),
+    ciWorkflowRuns: null,
+    ciLoading: false,
+    ciError: "",
+    ciLastSynced: "",
+    ciDraftJson: "",
+    ciDispatchMsg: "",
+    ciDispatchErr: "",
+    ciTokenMemory: "",
     // Bug Feedback
     bugs: JSON.parse(safeGet(STORAGE_KEY_BUGS, "null")) || window.DATA_HUB.initialBugs,
     bugStatusFilter: "ALL",
-    githubRepo: safeGet(STORAGE_KEY_GH, ""),
+    bugPrefill: null,
+    githubRepo: safeGet(STORAGE_KEY_GH, DEFAULT_REPO) || DEFAULT_REPO,
     ghIssues: null,
     ghError: "",
     // Mastery
@@ -41,13 +57,14 @@
 
   const SECTION_TITLES = {
     overview: "总览仪表盘 · 个人画像与数据洞察",
-    jobs: "岗位精准匹配 · 27 个官方 JD 全景评估（已同步 Vue3+TS+Flask+MongoDB）",
+    jobs: "岗位精准匹配 · 27 个官方 JD 动态修正（已结合鹰角/网易面评）",
     intro: "个人介绍话术库 · 3 套高分场景模板",
     qa: "工作经历 6 层深度追问 · 30 道通关题库",
     online: "线上逃逸 Bug 补齐 · 4,134 条公告提炼与必考题",
     methods: "游戏测试方法论 & 实战用例库",
-    study: "欠缺知识诊断 & 交互式翻转学习卡片（24 张）",
-    autohub: "四款游戏非侵入式自动化方案 & 数据展示看板",
+    roadmap: "真实面评深度诊断 & 8 周突围逆袭路线（系统表达 + 战斗/任务补救）",
+    study: "欠缺知识诊断 & 交互式翻转学习卡片（32 张）",
+    autohub: "四款游戏非侵入自动化方案（原神已实现）& CI 真实数据看板",
     feedback: "Bug 反馈缺陷看板 & GitHub Pages 零后端部署方案"
   };
 
@@ -191,21 +208,81 @@
     return legend + rows;
   }
 
+  /* ---------- Automation Run Helpers (Schema v2 + Anti-Mock Validation) ---------- */
+  function getRunMetrics(r) {
+    const m = r.metrics || {};
+    return {
+      coldStartSec: m.coldStartSec !== undefined ? m.coldStartSec : (r.coldStartSec ?? null),
+      avgFps: m.avgFps !== undefined ? m.avgFps : (r.avgFps ?? null),
+      low1Fps: m.low1Fps !== undefined ? m.low1Fps : (r.low1Fps ?? null),
+      p99FrameTimeMs: m.p99FrameTimeMs ?? null,
+      hitchCount50ms: m.hitchCount50ms ?? null,
+      hitchCount100ms: m.hitchCount100ms ?? null,
+      memMbAvg: m.memMbAvg !== undefined ? m.memMbAvg : (r.memMb ?? null),
+      memMbPeak: m.memMbPeak ?? null,
+      framesAnalyzed: m.framesAnalyzed ?? null,
+      teleportLoadsSec: Array.isArray(m.teleportLoadsSec) ? m.teleportLoadsSec : []
+    };
+  }
+
+  function fmtNum(val, suffix = "", digits = 1) {
+    if (val === null || val === undefined || Number.isNaN(Number(val))) return "未采集";
+    return Number(val).toFixed(digits) + suffix;
+  }
+
+  function avgNullable(arr, digits = 1) {
+    const valid = arr.filter(v => v !== null && v !== undefined && !Number.isNaN(Number(v))).map(Number);
+    if (!valid.length) return null;
+    return (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(digits);
+  }
+
+  function validateClientRunPayload(run) {
+    const errs = [];
+    if (!run || typeof run !== "object") return ["报告必须是 JSON 对象"];
+    for (const k of ["id", "game", "gameKey", "version", "suite", "mode", "timestamp", "date", "status", "dataOrigin"]) {
+      if (typeof run[k] !== "string" || !run[k].trim()) errs.push(`缺少字段 ${k}`);
+    }
+    const origin = String(run.dataOrigin || "").trim().toLowerCase();
+    if (FORBIDDEN_ORIGINS.has(origin) || !["real_capture", "real_replay"].includes(origin)) {
+      errs.push(`dataOrigin='${run.dataOrigin}' 不合规：仅接受 real_capture / real_replay，拒绝编造/模拟数据`);
+    }
+    if (!["PASS", "WARN", "FAIL"].includes(run.status)) errs.push(`非法状态 status='${run.status}'`);
+    if (!Array.isArray(run.cases)) errs.push("缺少 cases 数组");
+    if (!Array.isArray(run.findings)) errs.push("缺少 findings 数组");
+    return errs;
+  }
+
+  function extractRunsFromImportedJson(parsed) {
+    if (parsed && Array.isArray(parsed.runs)) {
+      return { isStore: true, store: parsed, runs: parsed.runs };
+    }
+    if (parsed && parsed.run && typeof parsed.run === "object") {
+      return { isStore: false, store: null, runs: [parsed.run] };
+    }
+    if (parsed && typeof parsed === "object" && parsed.id && parsed.game) {
+      return { isStore: false, store: null, runs: [parsed] };
+    }
+    throw new Error("未识别的 JSON 格式（需为单轮 report.json 或标准 automation-runs.json）");
+  }
+
   /* ---------- Trend Chart SVG for Automation Hub ---------- */
   function renderTrendSVG(runs) {
-    const ordered = [...runs].reverse();
-    if (!ordered.length) return `<div style="color:var(--text-muted);padding:16px;">暂无运行数据</div>`;
+    const ordered = [...runs].filter(r => r.passRate !== null && r.passRate !== undefined).reverse();
+    if (!ordered.length) return `<div style="color:var(--text-muted);padding:14px 4px;font-size:13px;">尚无真实巡检通过率数据，运行原神非侵入工具并接入 CI 后将自动绘制趋势曲线。</div>`;
     const W = 680, H = 200, padL = 44, padR = 24, padT = 20, padB = 34;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
     const stepX = ordered.length > 1 ? plotW / (ordered.length - 1) : 0;
 
-    const yPass = v => padT + plotH - ((Math.max(50, Math.min(100, v)) - 50) / 50) * plotH;
-    const ptsPass = ordered.map((r, i) => [padL + i * stepX, yPass(r.passRate)]);
+    const yPass = v => padT + plotH - ((Math.max(0, Math.min(100, v))) / 100) * plotH;
+    const ptsPass = ordered.map((r, i) => [
+      ordered.length === 1 ? padL + plotW / 2 : padL + i * stepX,
+      yPass(Number(r.passRate))
+    ]);
     const polyPass = ptsPass.map(p => p.join(",")).join(" ");
 
     let grid = "";
-    [50, 75, 100].forEach(v => {
+    [0, 50, 100].forEach(v => {
       const y = yPass(v);
       grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-dasharray="3,3" />`;
       grid += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10.5">${v}%</text>`;
@@ -214,16 +291,17 @@
     let dots = "";
     ordered.forEach((r, i) => {
       const [x, y] = ptsPass[i];
+      const m = getRunMetrics(r);
       const col = r.status === "PASS" ? "var(--success)" : r.status === "WARN" ? "var(--warning)" : "var(--danger)";
-      dots += `<circle cx="${x}" cy="${y}" r="5" fill="${col}" stroke="var(--bg-elev)" stroke-width="2"><title>${escHtml(r.game)} ${escHtml(r.date)}: 通过率 ${r.passRate}% | 1% Low ${r.low1Fps} FPS</title></circle>`;
+      dots += `<circle cx="${x}" cy="${y}" r="5.5" fill="${col}" stroke="var(--bg-elev)" stroke-width="2"><title>${escHtml(r.game)} ${escHtml(r.date)}: 通过率 ${r.passRate}% | 1% Low ${fmtNum(m.low1Fps, " FPS")}</title></circle>`;
       dots += `<text x="${x}" y="${y - 9}" text-anchor="middle" fill="var(--text)" font-size="10.5" font-weight="700">${r.passRate}%</text>`;
-      dots += `<text x="${x}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${escHtml(r.date.slice(5))} · ${escHtml(r.game.slice(0, 3))}</text>`;
+      dots += `<text x="${x}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${escHtml((r.date || "").slice(5))} · ${escHtml((r.game || "").slice(0, 3))}</text>`;
     });
 
     return `
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:220px;display:block;">
         ${grid}
-        <polyline fill="none" stroke="var(--primary)" stroke-width="2.5" points="${polyPass}" />
+        ${ordered.length > 1 ? `<polyline fill="none" stroke="var(--primary)" stroke-width="2.5" points="${polyPass}" />` : ""}
         ${dots}
       </svg>`;
   }
@@ -233,32 +311,37 @@
     const p = window.DATA_JOBS.profileSummary;
     const sJobs = window.DATA_JOBS.jobs.filter(j => j.tier === "S");
     const aJobs = window.DATA_JOBS.jobs.filter(j => j.tier === "A");
+    const realRuns = state.autoData.runs || [];
     const html = `
-      <div class="callout success">
-        <strong>最新画像已同步：</strong>新增 <strong>Vue 3 + TypeScript + Python + Flask + MongoDB</strong> 全栈质量平台开发经历后，你的可投递高匹配岗位显著拓宽！
-        米哈游「游戏测试开发-崩坏：因缘精灵」由 C 级跃升至 <strong>A 级 (83%)</strong>，鹰角「资深测开-明日方舟」跃升至 <strong>A 级 (81%)</strong>，鹰角「工具/Agent向」升至 <strong>S 级 (90%)</strong>！
+      <div class="callout warn">
+        <strong>🔥 结合鹰角/网易真实面评已动态重校准策略：</strong>
+        鹰角 UE 测开明确需要<strong>纯研发标准测开</strong>，网易反馈“前司未系统培养、经验缺失”——核心症结在于掉进了<strong>“纯开发 vs 深业务”的夹心层陷阱</strong>！
+        <br/>现阶段最高胜率策略：<strong>停止硬撞纯测开，主攻「高技术杠杆的系统/玩法业务 QA（米哈游 崩铁/星布谷地/绝区零 + 鹰角 UE 系统向）」</strong>，先用 2 周把系统侧练到“四层架构脱口而出”，再补齐战斗/任务模型与非侵入作品集！
+        <div style="margin-top:8px;">
+          <button class="btn btn-primary btn-sm" onclick="window.__goSec('roadmap')">立刻查看：面评诊断 & 8周逆袭路线 -></button>
+        </div>
       </div>
 
       <div class="grid-4">
         <div class="kpi-card">
-          <div class="kpi-label">首选 S 级投递岗</div>
+          <div class="kpi-label">校准后 S 级高胜率岗</div>
           <div class="kpi-value" style="color:var(--success)">${sJobs.length} 个</div>
-          <div class="kpi-sub">鹰角 UE测开(96%) / 系统向(91%) / 工具向(90%)</div>
+          <div class="kpi-sub">鹰角UE系统向 / 绝区零 / 崩铁 / 星布谷地</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">强力 A 级投递岗</div>
           <div class="kpi-value" style="color:var(--primary)">${aJobs.length} 个</div>
-          <div class="kpi-sub">绝区零 / 源初之结专项 / 因缘精灵测开 / 崩铁 / 星布谷地等</div>
+          <div class="kpi-sub">原神 / 因缘精灵业务岗 / 源初之结专项</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">面试追问 + 学习卡片</div>
-          <div class="kpi-value" style="color:var(--accent)">36 题 + 24 卡</div>
-          <div class="kpi-sub">6层追问 + 线上必考 + 6大知识短板翻转卡片</div>
+          <div class="kpi-value" style="color:var(--accent)">36 题 + 32 卡</div>
+          <div class="kpi-sub">新增 8 张战斗/任务/商业化/表达破局卡片</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">非侵入自动化 + Pages</div>
-          <div class="kpi-value">就绪</div>
-          <div class="kpi-sub">4款包体黑盒巡检方案 + JSON看板 + GitHub部署</div>
+          <div class="kpi-label">非侵入自动化 + CI 入库</div>
+          <div class="kpi-value" style="color:var(--primary)">${realRuns.length ? `${realRuns.length} 轮实测` : "原神已实现"}</div>
+          <div class="kpi-sub">${realRuns.length ? "严格真实数据 · CI 自动校验入库" : "零编造数据 · 等待真实巡检 CI 入库"}</div>
         </div>
       </div>
 
@@ -313,10 +396,10 @@
     };
 
     const html = `
-      <div class="callout success">
-        <strong>同步 Vue 3 + TS + Python + Flask + MongoDB 全栈经历后的投递升级建议：</strong>
-        <br/>• <strong>鹰角网络（S 级 3 岗全中）</strong>：第一志愿「游戏测试开发工程师-(UE项目) 96%」、第二志愿「资深游戏测试工程师—系统向(UE项目) 91%」与「资深测开-工具/Agent向 90%」，备选「资深测开-明日方舟 81%」。
-        <br/>• <strong>米哈游（新增全栈测开黑马）</strong>：除「绝区零 (85%)」「源初之结专项 (84%)」「崩铁 (83%)」「星布谷地 (82%)」外，<strong>「游戏测试开发-崩坏：因缘精灵 (83%)」</strong> 已正式进入高匹配可投池（Vue3+TS+Python+Flask+MongoDB 精准命中全栈平台要求）。
+      <div class="callout warn">
+        <strong>结合“鹰角 UE 测开未通过（需纯测开）”与“网易面评”后的投递战略重排：</strong>
+        <br/>• <strong>当前 S 级最高胜率池（发挥“综合+工具杠杆”优势，规避纯开发硬门槛）</strong>：<strong>鹰角「UE 系统向 (92%)」</strong>、<strong>米哈游「绝区零 (89%)」</strong>、<strong>「崩坏：星穹铁道 (88%)」</strong>（系统权重高、避开硬核 ACT 战斗短板）、<strong>「星布谷地 (87%)」</strong>（物品/背包/采集/家园双人交互 100% 命中！）。
+        <br/>• <strong>纯测开岗降级预警（B 级暂缓）</strong>：鹰角 UE 测开/工具向/明日方舟测开与米哈游因缘精灵平台测开偏向纯研发标准（算法+后端高并发+独立底层框架），建议先通过业务+工具复合岗上岸或按「路线 B」专攻 4~6 个月算法与底层后再战。
       </div>
 
       <div class="filter-bar">
@@ -742,7 +825,7 @@
 
     const html = `
       <div class="callout">
-        <strong>针对性短板补齐：</strong>结合你更新后的技术栈（Vue3+TS+Flask+MongoDB + UE工具链）与目标 JD，梳理出 <strong>6 大最易被面试官深挖的知识盲区</strong>，并制成 <strong>24 张间隔记忆翻转学习卡片</strong>。点击卡片翻转看精解与面试金句，自评结果自动保存在本地浏览器。
+        <strong>针对性短板补齐：</strong>已新增<strong>第 7 板块「战斗/任务/商业化核心业务补齐」</strong>（8 张高频破局卡片），共 <strong>32 张间隔记忆翻转学习卡片</strong>！点击卡片翻转看精解与面试金句，自评结果自动保存在本地浏览器。
       </div>
 
       <h3 style="margin:0 0 12px;font-size:16.5px;">一、六大欠缺知识诊断地图</h3>
@@ -893,125 +976,452 @@
     });
   }
 
-  /* ---------- 8. Non-Intrusive Automation & Data Dashboard ---------- */
+  /* ---------- ★ Real Interview Diagnosis & 8-Week Roadmap ---------- */
+  function renderRoadmap() {
+    const rm = window.DATA_ROADMAP;
+    const allTasks = rm.roadmapWeeks.flatMap(w => w.tasks);
+    const doneTasks = allTasks.filter(t => state.roadmapDone.has(t.id)).length;
+    const pct = allTasks.length ? Math.round((doneTasks / allTasks.length) * 100) : 0;
+
+    const html = `
+      <div class="callout warn">
+        <strong>${escHtml(rm.diagnosis.headline)}</strong>
+        <br/>${escHtml(rm.diagnosis.summary)}
+      </div>
+
+      <h3 style="margin:0 0 12px;font-size:17px;">一、真实面试反馈深度解剖（为什么会被拒？症结在哪里？）</h3>
+      <div class="grid-3">
+        ${rm.diagnosis.feedbacks.map(f => `
+          <div class="card" style="border-top:3px solid var(--danger);">
+            <div class="card-title" style="font-size:14.5px;margin-bottom:8px;">
+              <span>${escHtml(f.source)}</span>
+              <span class="pill pill-c">真实信号</span>
+            </div>
+            <div style="font-weight:700;color:var(--danger);background:var(--danger-soft);padding:7px 10px;border-radius:6px;margin-bottom:10px;font-size:13px;">
+              原话：“${escHtml(f.quote)}”
+            </div>
+            <div style="font-size:13.2px;color:var(--text-secondary);margin-bottom:10px;">
+              <strong>底层真相：</strong>${escHtml(f.truth)}
+            </div>
+            <div style="font-size:13px;color:var(--primary);background:var(--primary-soft);padding:8px 10px;border-radius:6px;">
+              <strong>止血动作：</strong>${escHtml(f.action)}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+
+      <h3 style="margin:22px 0 12px;font-size:17px;">二、战略抉择：立刻选定主战赛道（停止两头摇摆）</h3>
+      <div class="grid-2">
+        ${rm.diagnosis.routeChoice.map((rc, i) => `
+          <div class="card" style="border-left:4px solid ${i === 0 ? "var(--success)" : "var(--warning)"};">
+            <div class="card-title" style="font-size:15px;">
+              <span>${escHtml(rc.name)}</span>
+              <span class="pill ${i === 0 ? "pill-s" : "pill-b"}">${escHtml(rc.fit)}</span>
+            </div>
+            <div style="font-size:13px;color:var(--primary);font-weight:600;margin-bottom:8px;">
+              目标岗位池：${escHtml(rc.targets)}
+            </div>
+            <div style="font-size:13.4px;color:var(--text-secondary);">${escHtml(rc.why)}</div>
+          </div>
+        `).join("")}
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:17px;">三、专治“系统侧面试说不太清楚”：四层架构万能逐字模板</h3>
+      ${rm.speakingTemplates.map(tpl => `
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title">${escHtml(tpl.title)}</div>
+          <div class="pitfall-tag" style="margin-bottom:12px;">${escHtml(tpl.wrongWay)}</div>
+          <div class="grid-2" style="margin-bottom:0;">
+            ${tpl.layers.map(l => `
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+                <div style="font-weight:700;color:var(--primary);font-size:13.5px;margin-bottom:6px;">${escHtml(l.step)}</div>
+                <div style="font-size:13.3px;line-height:1.7;color:var(--text);">${escHtml(l.script)}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `).join("")}
+
+      <h3 style="margin:24px 0 12px;font-size:17px;">四、零战斗 / 零任务 / 零商业化上线经历：三套务实补救方案</h3>
+      <div class="grid-3">
+        ${rm.missingDomains.map(d => `
+          <div class="card">
+            <div class="card-title" style="font-size:14.8px;">${escHtml(d.domain)}</div>
+            <div style="font-size:12.5px;color:var(--success);background:var(--success-soft);padding:7px 9px;border-radius:6px;margin-bottom:10px;">
+              <strong>可借力的既有筹码：</strong>${escHtml(d.leverage)}
+            </div>
+            <ul style="margin:0 0 10px;padding-left:17px;font-size:13px;">
+              ${d.framework.map(fw => `<li style="margin-bottom:5px;">${escHtml(fw)}</li>`).join("")}
+            </ul>
+            <div style="font-size:12.8px;color:var(--primary);background:var(--primary-soft);padding:8px 10px;border-radius:6px;margin-bottom:10px;">
+              ${escHtml(d.practiceTask)}
+            </div>
+            <div style="font-size:12.8px;color:var(--text-secondary);background:var(--bg-subtle);padding:8px 10px;border-radius:6px;">
+              ${escHtml(d.interviewScript)}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:17px;">
+        五、8 周突围逆袭执行清单（已完成 ${doneTasks} / ${allTasks.length} · ${pct}%）
+      </h3>
+      <div class="progress-track" style="height:10px;margin-bottom:16px;">
+        <div class="progress-fill" style="width:${pct}%"></div>
+      </div>
+
+      <div class="grid-2">
+        ${rm.roadmapWeeks.map(w => `
+          <div class="card">
+            <div class="card-title">
+              <span>${escHtml(w.phase)} · ${escHtml(w.title)}</span>
+            </div>
+            <div style="font-size:12.8px;color:var(--accent);background:var(--accent-soft);padding:6px 10px;border-radius:6px;margin-bottom:12px;">
+              <strong>阶段目标：</strong>${escHtml(w.goal)}
+            </div>
+            <div style="display:grid;gap:8px;">
+              ${w.tasks.map(t => {
+                const checked = state.roadmapDone.has(t.id);
+                return `
+                  <label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:${checked ? "var(--success-soft)" : "var(--bg)"};cursor:pointer;font-size:13.2px;">
+                    <input type="checkbox" class="rm-chk" data-rmid="${escHtml(t.id)}" ${checked ? "checked" : ""} style="margin-top:3px;" />
+                    <span style="${checked ? "text-decoration:line-through;color:var(--text-muted);" : ""}">${escHtml(t.text)}</span>
+                  </label>`;
+              }).join("")}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    const container = document.getElementById("view-roadmap");
+    container.innerHTML = html;
+    container.querySelectorAll(".rm-chk").forEach(chk => {
+      chk.addEventListener("change", () => {
+        const id = chk.dataset.rmid;
+        if (chk.checked) state.roadmapDone.add(id);
+        else state.roadmapDone.delete(id);
+        safeSet(STORAGE_KEY_ROADMAP, JSON.stringify([...state.roadmapDone]));
+        renderRoadmap();
+      });
+    });
+  }
+
+  /* ---------- 8. Non-Intrusive Automation & CI Real-Data Dashboard ---------- */
+  function renderCiBadge(run) {
+    const ci = run.ci || {};
+    const provider = ci.provider || "local-cli";
+    const label = provider === "github-actions"
+      ? `GitHub CI${ci.jobRunNumber ? ` #${ci.jobRunNumber}` : ""}`
+      : provider === "jenkins"
+        ? `Jenkins${ci.jobRunNumber ? ` #${ci.jobRunNumber}` : ""}`
+        : provider === "local-preview"
+          ? "本地预览(未入库)"
+          : "本地 CLI";
+    const pillCls = provider === "github-actions" ? "pill-s" : provider === "jenkins" ? "pill-a" : "pill-muted";
+    const linkHtml = ci.jobUrl
+      ? `<a href="${escHtml(ci.jobUrl)}" target="_blank" rel="noopener" class="pill ${pillCls}">${escHtml(label)} ↗</a>`
+      : `<span class="pill ${pillCls}">${escHtml(label)}</span>`;
+    const subParts = [];
+    if (ci.triggeredBy) subParts.push(ci.triggeredBy);
+    if (ci.commitSha) subParts.push(ci.commitSha.slice(0, 7));
+    return `
+      <div>${linkHtml}</div>
+      ${subParts.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;font-family:monospace;">${escHtml(subParts.join(" · "))}</div>` : ""}
+    `;
+  }
+
   function renderAutoHub() {
     const plan = window.DATA_STUDY.nonIntrusivePlan;
     const runsAll = state.autoData.runs || [];
     const runs = runsAll.filter(r => state.autoGameFilter === "ALL" || r.game === state.autoGameFilter);
+    const ciSummary = state.autoData.ci || {};
 
-    const avgPass = runs.length ? (runs.reduce((s, r) => s + r.passRate, 0) / runs.length).toFixed(1) : "0.0";
-    const avgCold = runs.length ? (runs.reduce((s, r) => s + r.coldStartSec, 0) / runs.length).toFixed(1) : "0.0";
-    const avgLow1 = runs.length ? (runs.reduce((s, r) => s + r.low1Fps, 0) / runs.length).toFixed(1) : "0.0";
+    const avgPass = avgNullable(runs.map(r => r.passRate), 1);
+    const avgCold = avgNullable(runs.map(r => getRunMetrics(r).coldStartSec), 1);
+    const avgLow1 = avgNullable(runs.map(r => getRunMetrics(r).low1Fps), 1);
     const totalFindings = runs.reduce((s, r) => s + (r.findings?.length || 0), 0);
+
+    const repoSlug = state.githubRepo || DEFAULT_REPO;
+    const cliPushCmd = `cd automation\n$env:GITHUB_TOKEN = "<具备 Contents:Write 的 Fine-grained PAT>"\nuv run qa-observer genshin observe --duration 120 --ci-push --ci-repo ${repoSlug}`;
 
     const html = `
       <div class="callout warn">
         ${escHtml(plan.complianceNotice)}
       </div>
 
-      <h3 style="margin:0 0 12px;font-size:17px;">一、自动化巡检数据展示看板（支持未来真实 JSON 持续接入）</h3>
+      <div class="callout success">
+        <strong>真实数据与 CI 门禁策略（Real-Data-Only）：</strong>
+        本站已彻底移除全部编造/演示巡检数据。所有展示记录均须来自真实工具执行（<code>dataOrigin: real_capture | real_replay</code>），由 <code>.github/workflows/ingest-automation-run.yml</code> 校验 Schema v2 并自动触发 GitHub Pages 重新部署；未挂载 PresentMon / OCR 的指标如实标注“未采集”。
+      </div>
+
+      <h3 style="margin:0 0 12px;font-size:17px;">一、真实巡检数据展示看板（Schema v2 · 零编造数据）</h3>
       <div class="card" style="margin-bottom:18px;">
-        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;">
-          <div style="font-size:12.8px;color:var(--text-muted);">
-            <strong>当前数据源：</strong>${escHtml(state.autoSource)} &nbsp;|&nbsp; 最后更新：<strong>${escHtml(state.autoData.updatedAt || "-")}</strong>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <label class="btn btn-primary btn-sm" style="cursor:pointer;">
-              📂 导入本地 JSON 报告
-              <input type="file" id="import-auto-json" accept=".json" style="display:none;" />
-            </label>
-            <button class="btn btn-sm" id="export-auto-json">⬇ 导出当前 JSON 模板</button>
-          </div>
+        <div class="ci-strip">
+          <span><strong>数据源：</strong>${escHtml(state.autoSource)}</span>
+          <span>|</span>
+          <span><strong>策略：</strong><span class="pill pill-s">${escHtml(state.autoData.policy || "real-data-only")}</span></span>
+          <span>|</span>
+          <span><strong>最后 CI 入库：</strong>${escHtml(ciSummary.lastIngestAt || state.autoData.updatedAt || "尚无真实入库记录")}</span>
+          ${ciSummary.lastJobUrl ? `<a href="${escHtml(ciSummary.lastJobUrl)}" target="_blank" rel="noopener">最近入库 Job ↗</a>` : ""}
         </div>
 
-        <div class="filter-bar">
-          ${["ALL", "原神", "崩坏：星穹铁道", "绝区零", "明日方舟：终末地"].map(g => `
-            <button class="filter-chip ${state.autoGameFilter === g ? "active" : ""}" data-agame="${escHtml(g)}">
-              ${g === "ALL" ? `全部游戏 (${runsAll.length} 轮)` : g}
-            </button>
-          `).join("")}
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;">
+          <div class="filter-bar" style="margin-bottom:0;">
+            ${["ALL", "原神", "崩坏：星穹铁道", "绝区零", "明日方舟：终末地"].map(g => {
+              const cnt = g === "ALL" ? runsAll.length : runsAll.filter(r => r.game === g).length;
+              return `
+                <button class="filter-chip ${state.autoGameFilter === g ? "active" : ""}" data-agame="${escHtml(g)}">
+                  ${g === "ALL" ? `全部游戏 (${cnt})` : `${g} (${cnt})`}
+                </button>`;
+            }).join("")}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="sync-remote-json-btn">🔄 同步仓库最新数据</button>
+            <label class="btn btn-sm" style="cursor:pointer;">
+              📂 导入真实 report.json 预览
+              <input type="file" id="import-auto-json" accept=".json" style="display:none;" />
+            </label>
+            <button class="btn btn-sm" id="export-auto-json">⬇ 导出当前 JSON</button>
+          </div>
         </div>
 
         <div class="grid-4">
           <div class="kpi-card">
-            <div class="kpi-label">巡检总轮次</div>
+            <div class="kpi-label">真实巡检总轮次</div>
             <div class="kpi-value">${runs.length}</div>
-            <div class="kpi-sub">非侵入外部黑盒采集</div>
+            <div class="kpi-sub">仅统计实测 / 真实回放记录</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">平均用例通过率</div>
-            <div class="kpi-value" style="color:var(--success)">${avgPass}%</div>
-            <div class="kpi-sub">CV / OCR / VLM 综合断言</div>
+            <div class="kpi-value" style="color:${avgPass !== null ? "var(--success)" : "var(--text-muted)"}">${avgPass !== null ? `${avgPass}%` : "--"}</div>
+            <div class="kpi-sub">跳过项 (SKIP) 不计入分母</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">平均冷启动 / 1% Low FPS</div>
-            <div class="kpi-value" style="color:var(--primary)">${avgCold}s / ${avgLow1}</div>
-            <div class="kpi-sub">PresentMon + 进程探针基线</div>
+            <div class="kpi-label">实测冷启动 / 1% Low FPS</div>
+            <div class="kpi-value" style="color:${(avgCold !== null || avgLow1 !== null) ? "var(--primary)" : "var(--text-muted)"}">${avgCold !== null ? `${avgCold}s` : "--"} / ${avgLow1 !== null ? avgLow1 : "--"}</div>
+            <div class="kpi-sub">仅汇总真实挂载 PresentMon 的轮次</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">累计拦截异常条目</div>
-            <div class="kpi-value" style="color:var(--danger)">${totalFindings} 条</div>
-            <div class="kpi-sub">可一键转入 Bug 反馈看板</div>
+            <div class="kpi-label">实测检出异常条目</div>
+            <div class="kpi-value" style="color:${totalFindings > 0 ? "var(--danger)" : "var(--success)"}">${totalFindings} 条</div>
+            <div class="kpi-sub">支持一键转入 Bug 反馈单</div>
           </div>
         </div>
 
-        <div style="margin-bottom:18px;">
-          <div style="font-size:13.5px;font-weight:700;margin-bottom:6px;">历史巡检通过率趋势</div>
-          ${renderTrendSVG(runs)}
-        </div>
+        ${runs.length ? `
+          <div style="margin-bottom:18px;">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:6px;">真实巡检通过率趋势</div>
+            ${renderTrendSVG(runs)}
+          </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Run ID / 日期</th>
-                <th>游戏与版本</th>
-                <th>非侵入巡检套件</th>
-                <th>状态 / 通过率</th>
-                <th>性能基线 (冷启/FPS/内存)</th>
-                <th>检出异常详情</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${runs.map(r => `
+          <div class="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td>
-                    <div style="font-weight:700;font-family:monospace;">${escHtml(r.id)}</div>
-                    <div style="font-size:12px;color:var(--text-muted);">${escHtml(r.date)}</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:700;">${escHtml(r.game)}</div>
-                    <div style="font-size:12px;color:var(--text-muted);">${escHtml(r.version)}</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:600;">${escHtml(r.suite)}</div>
-                    <div style="font-size:11.8px;color:var(--accent);margin-top:3px;">${escHtml(r.mode)}</div>
-                  </td>
-                  <td>
-                    <span class="pill status-${escHtml(r.status)}">${escHtml(r.status)} · ${r.passRate}%</span>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">通过 ${r.passedCases}/${r.totalCases}</div>
-                  </td>
-                  <td style="font-size:12.6px;">
-                    冷启动：<strong>${r.coldStartSec}s</strong><br/>
-                    均帧 / 1% Low：<strong>${r.avgFps} / ${r.low1Fps}</strong><br/>
-                    内存水位：<strong>${r.memMb} MB</strong>
-                  </td>
-                  <td>
-                    ${r.findings && r.findings.length ? r.findings.map(f => `
-                      <div class="quote-item" style="margin-bottom:6px;">
-                        <span class="pill ${f.severity === "P0" || f.severity === "P1" ? "pill-c" : "pill-b"}" style="margin-right:4px;">${escHtml(f.severity)}</span>
-                        <strong>${escHtml(f.rule)}</strong>：${escHtml(f.msg)}
-                      </div>
-                    `).join("") : `<span style="color:var(--success);font-weight:600;">✓ 零异常</span>`}
-                  </td>
+                  <th>Run ID / 时间</th>
+                  <th>游戏与版本</th>
+                  <th>套件 / 模式</th>
+                  <th>CI 接入来源</th>
+                  <th>状态 / 通过率</th>
+                  <th>实测性能基线</th>
+                  <th>检出异常 (Findings)</th>
                 </tr>
-              `).join("")}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${runs.map(r => {
+                  const m = getRunMetrics(r);
+                  const env = r.environment || {};
+                  const isExp = state.expandedRuns.has(r.id);
+                  const originLabel = r.dataOrigin === "real_replay" ? "真实回放" : "实机采集";
+                  return `
+                    <tr>
+                      <td>
+                        <div style="font-weight:700;font-family:monospace;">${escHtml(r.id)}</div>
+                        <div style="font-size:12px;color:var(--text-muted);">${escHtml(r.date || "")}</div>
+                        <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+                          <span class="pill pill-muted">${originLabel}</span>
+                          <button class="btn btn-sm toggle-run-detail" data-runid="${escHtml(r.id)}" style="padding:2px 7px;font-size:11px;">
+                            ${isExp ? "收起明细 ▲" : `用例明细 (${(r.cases || []).length}) ▼`}
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <div style="font-weight:700;">${escHtml(r.game)}</div>
+                        <div style="font-size:12px;color:var(--text-muted);">版本：${escHtml(r.version || "unknown")}</div>
+                      </td>
+                      <td>
+                        <div style="font-weight:600;">${escHtml(r.suite)}</div>
+                        <div style="font-size:11.8px;color:var(--accent);margin-top:3px;">mode: ${escHtml(r.mode)} · 耗时 ${escHtml(r.durationSec ?? "-")}s</div>
+                      </td>
+                      <td>${renderCiBadge(r)}</td>
+                      <td>
+                        <span class="pill status-${escHtml(r.status)}">${escHtml(r.status)}${r.passRate !== null && r.passRate !== undefined ? ` · ${r.passRate}%` : ""}</span>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                          通过 ${r.passedCases ?? 0}/${r.totalCases ?? 0}${r.skippedCases ? ` (跳过 ${r.skippedCases})` : ""}
+                        </div>
+                      </td>
+                      <td style="font-size:12.4px;">
+                        冷启动：<strong>${fmtNum(m.coldStartSec, "s", 1)}</strong><br/>
+                        均帧 / 1% Low：<strong>${fmtNum(m.avgFps, "", 1)} / ${fmtNum(m.low1Fps, "", 1)}</strong><br/>
+                        P99 帧时间：<strong>${fmtNum(m.p99FrameTimeMs, "ms", 1)}</strong><br/>
+                        内存均/峰：<strong>${fmtNum(m.memMbAvg, "MB", 0)} / ${fmtNum(m.memMbPeak, "MB", 0)}</strong><br/>
+                        分析帧数：<strong>${m.framesAnalyzed ?? "未采集"}</strong>
+                      </td>
+                      <td>
+                        ${r.findings && r.findings.length ? r.findings.map((f, fIdx) => `
+                          <div class="quote-item" style="margin-bottom:6px;">
+                            <span class="pill ${f.severity === "P0" || f.severity === "P1" ? "pill-c" : "pill-b"}" style="margin-right:4px;">${escHtml(f.severity)}</span>
+                            <strong>${escHtml(f.rule)}</strong>：${escHtml(f.msg)}
+                            <div style="margin-top:5px;">
+                              <button class="btn btn-sm finding-to-bug-btn" data-runid="${escHtml(r.id)}" data-fidx="${fIdx}" style="padding:2px 8px;font-size:11.5px;">转入 Bug 反馈 -></button>
+                            </div>
+                          </div>
+                        `).join("") : `<span style="color:var(--success);font-weight:600;">✓ 零异常</span>`}
+                      </td>
+                    </tr>
+                    ${isExp ? `
+                      <tr>
+                        <td colspan="7" style="background:var(--bg-subtle);padding:12px 14px;">
+                          <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:8px;">
+                            <strong>采集环境：</strong>OS=${escHtml(env.os || "-")} | 分辨率=${escHtml(env.resolution || "未采集")} |
+                            捕获后端=${escHtml(env.captureBackend || "未采集")} | PresentMon=${env.presentmonAttached ? "已挂载" : "未挂载"} |
+                            OCR=${escHtml(env.ocrEngine || "未启用")} | 传送加载(s)=${escHtml(m.teleportLoadsSec.length ? m.teleportLoadsSec.join(", ") : "无")}
+                          </div>
+                          <div class="case-detail-box">
+                            <table style="font-size:12.6px;">
+                              <thead>
+                                <tr>
+                                  <th style="width:130px;">用例 ID</th>
+                                  <th style="width:240px;">检测项名称</th>
+                                  <th style="width:80px;">结果</th>
+                                  <th style="width:80px;">耗时</th>
+                                  <th>实测详情</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${(r.cases || []).map(c => `
+                                  <tr>
+                                    <td style="font-family:monospace;font-weight:700;">${escHtml(c.caseId)}</td>
+                                    <td>${escHtml(c.name)}</td>
+                                    <td><span class="pill status-${escHtml(c.status)}">${escHtml(c.status)}</span></td>
+                                    <td>${escHtml(c.durationSec ?? 0)}s</td>
+                                    <td>${escHtml(c.detail || "")}</td>
+                                  </tr>
+                                `).join("")}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    ` : ""}
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <div class="empty-state">
+            <h4>📭 当前暂无真实巡检记录入库（已清零全部编造数据）</h4>
+            <p>
+              原神非侵入自动化工具（<span class="mono-inline">automation/src/qa_observer/games/genshin.py</span>）与 GitHub Actions CI 自动入库流水线已全部就绪。
+              在本机运行一次真实观测或录屏回放，通过 CI 推送或本地导入，即可在此实时展示真实性能基线、用例明细与异常证据！
+            </p>
+            <pre class="code-block" style="text-align:left;max-width:780px;margin:0 auto 12px;"><code>${escHtml(cliPushCmd)}</code></pre>
+            <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" id="empty-copy-cli-btn">📋 复制原神运行 + CI 上报命令</button>
+              <button class="btn btn-sm" id="empty-sync-ci-btn">🔄 拉取 GitHub Actions 流水线状态</button>
+            </div>
+          </div>
+        `}
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:17px;">二、CI 自动化数据接入中心（GitHub Actions / Jenkins / 在线 Dispatch）</h3>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <span>GitHub Actions 实时流水线状态</span>
+            <span class="pill pill-a">Public API · 零后端</span>
+          </div>
+          <div class="form-field">
+            <label class="form-label">目标 GitHub 仓库（<code>owner/repo</code>，与 Bug 反馈页共用配置）</label>
+            <div style="display:flex;gap:8px;">
+              <input class="form-input" id="ci-repo-input" value="${escHtml(repoSlug)}" placeholder="supercoko/Game_QA_Experience_Web" />
+              <button class="btn btn-primary btn-sm" id="fetch-ci-runs-btn">${state.ciLoading ? "拉取中..." : "拉取 CI 状态"}</button>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+            实时查询 <span class="mono-inline">ingest-automation-run.yml</span>、<span class="mono-inline">ci-quality-gate.yml</span> 与 <span class="mono-inline">deploy-pages.yml</span> 的最近执行记录。
+            ${state.ciLastSynced ? `上次同步：<strong>${escHtml(state.ciLastSynced)}</strong>` : ""}
+          </div>
+          ${state.ciError ? `<div class="pitfall-tag" style="margin-bottom:10px;">${escHtml(state.ciError)}</div>` : ""}
+          ${state.ciWorkflowRuns ? `
+            <div style="max-height:280px;overflow-y:auto;">
+              ${state.ciWorkflowRuns.length ? state.ciWorkflowRuns.map(wr => {
+                const st = wr.conclusion || wr.status || "queued";
+                const stCls = st === "success" ? "pill-s" : (st === "failure" || st === "cancelled") ? "pill-c" : "pill-b";
+                return `
+                  <div class="quote-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <div>
+                      <span class="pill ${stCls}" style="margin-right:6px;">${escHtml(st)}</span>
+                      <strong>${escHtml(wr.name)} #${wr.run_number}</strong>
+                      <div style="font-size:11.8px;color:var(--text-muted);margin-top:2px;">
+                        事件：${escHtml(wr.event)} · Commit ${escHtml((wr.head_sha || "").slice(0, 7))} · ${escHtml((wr.created_at || "").replace("T", " ").slice(0, 16))}
+                      </div>
+                    </div>
+                    <a class="btn btn-sm" href="${escHtml(wr.html_url)}" target="_blank" rel="noopener">日志 ↗</a>
+                  </div>`;
+              }).join("") : `<div style="font-size:13px;color:var(--text-muted);">仓库暂未查到工作流运行记录，推送新代码或触发一次 CI 上报后即可在此查看。</div>`}
+            </div>
+          ` : `
+            <div style="background:var(--bg-subtle);padding:12px;border-radius:8px;font-size:12.8px;color:var(--text-secondary);">
+              点击右上角<strong>“拉取 CI 状态”</strong>可直连 GitHub Actions Public API，展示本仓库真实的 CI 数据入库、质量门禁和 Pages 发布记录（Public 仓库无需 Token）。
+            </div>
+          `}
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>在线推送真实报告至 CI（repository_dispatch）</span>
+            <span class="pill pill-purple">反编造校验</span>
+          </div>
+          <div class="form-field">
+            <label class="form-label">选择或粘贴由 <code>qa-observer genshin</code> 生成的真实 <code>report.json</code></label>
+            <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+              <label class="btn btn-sm" style="cursor:pointer;">
+                📄 从本地加载 report.json
+                <input type="file" id="ci-load-draft-file" accept=".json" style="display:none;" />
+              </label>
+              <button class="btn btn-sm" id="ci-validate-draft-btn">✓ 校验 Schema v2</button>
+              <button class="btn btn-sm" id="ci-copy-curl-btn">📋 复制 curl / CLI 上报命令</button>
+            </div>
+            <textarea class="form-textarea" id="ci-draft-json" style="font-family:monospace;font-size:12px;min-height:110px;" placeholder="粘贴真实单轮 report.json（仅接受 dataOrigin=real_capture 或 real_replay）...">${escHtml(state.ciDraftJson)}</textarea>
+          </div>
+          <div class="form-field">
+            <label class="form-label">GitHub Fine-grained PAT（仅当前会话内存使用，绝不写入浏览器存储；需 Contents: Write）</label>
+            <div style="display:flex;gap:8px;">
+              <input class="form-input" type="password" id="ci-pat-input" value="${escHtml(state.ciTokenMemory)}" placeholder="github_pat_...（选填，留空可复制 CLI 命令在终端上报）" />
+              <button class="btn btn-primary btn-sm" id="ci-dispatch-btn">🚀 触发 CI 入库</button>
+            </div>
+          </div>
+          ${state.ciDispatchMsg ? `<div class="callout success" style="margin:8px 0 0;padding:8px 12px;font-size:12.8px;">${escHtml(state.ciDispatchMsg)}</div>` : ""}
+          ${state.ciDispatchErr ? `<div class="pitfall-tag" style="margin-top:8px;">${escHtml(state.ciDispatchErr)}</div>` : ""}
         </div>
       </div>
 
-      <h3 style="margin:24px 0 12px;font-size:17px;">二、面向线上真实包体的四层非侵入自动化架构</h3>
+      <div class="grid-2">
+        ${(window.DATA_HUB.ciChannels || []).map(ch => `
+          <div class="card" style="padding:16px;">
+            <div class="card-title" style="font-size:14.5px;margin-bottom:6px;">
+              <span>${escHtml(ch.name)}</span>
+            </div>
+            <div style="font-size:12px;color:var(--primary);font-family:monospace;margin-bottom:6px;">${escHtml(ch.workflow)} · ${escHtml(ch.trigger)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);">${escHtml(ch.detail)}</div>
+          </div>
+        `).join("")}
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:17px;">三、面向线上真实包体的四层非侵入自动化架构</h3>
       <div class="grid-2">
         ${plan.architecture.map(a => `
           <div class="card">
@@ -1022,32 +1432,35 @@
         `).join("")}
       </div>
 
-      <h3 style="margin:24px 0 12px;font-size:17px;">三、四款游戏差异化非侵入巡检落地方案</h3>
+      <h3 style="margin:24px 0 12px;font-size:17px;">四、四款游戏差异化非侵入巡检落地方案（原神已落地工具）</h3>
       <div class="grid-2">
-        ${plan.gameScenarios.map(gs => `
-          <div class="card">
-            <div class="card-title">
-              <span>${escHtml(gs.game)}</span>
-              <span class="pill pill-purple">${escHtml(gs.badge)}</span>
-            </div>
-            <ul style="margin:0 0 10px;padding-left:18px;font-size:13.4px;">
-              ${gs.scenarios.map(s => `<li style="margin-bottom:6px;">${escHtml(s)}</li>`).join("")}
-            </ul>
-            <div style="font-size:12.5px;color:var(--success);background:var(--success-soft);padding:6px 10px;border-radius:6px;">
-              <strong>呼应线上真实逃逸案例：</strong>${escHtml(gs.mappedOnlineBug)}
-            </div>
-          </div>
-        `).join("")}
+        ${plan.gameScenarios.map(gs => {
+          const isImpl = gs.gameKey === "genshin";
+          return `
+            <div class="card" style="${isImpl ? "border-left:4px solid var(--success);" : ""}">
+              <div class="card-title">
+                <span>${escHtml(gs.game)}</span>
+                <span class="pill ${isImpl ? "pill-s" : "pill-muted"}">${escHtml(gs.implStatus || gs.badge)}</span>
+              </div>
+              ${gs.configPath ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">配置：<span class="mono-inline">${escHtml(gs.configPath)}</span> &nbsp;|&nbsp; 模块：<span class="mono-inline">${escHtml(gs.adapterPath || "")}</span></div>` : ""}
+              <ul style="margin:0 0 10px;padding-left:18px;font-size:13.4px;">
+                ${gs.scenarios.map(s => `<li style="margin-bottom:6px;">${escHtml(s)}</li>`).join("")}
+              </ul>
+              <div style="font-size:12.5px;color:var(--success);background:var(--success-soft);padding:6px 10px;border-radius:6px;">
+                <strong>呼应线上真实逃逸案例：</strong>${escHtml(gs.mappedOnlineBug)}
+              </div>
+            </div>`;
+        }).join("")}
       </div>
 
-      <h3 style="margin:24px 0 12px;font-size:17px;">四、Python 非侵入脚本接入契约（跑完直接写入 <code>web/data/automation-runs.json</code>）</h3>
+      <h3 style="margin:24px 0 12px;font-size:17px;">五、原神非侵入工具实际 CLI 用法 & Schema v2 数据契约</h3>
       <div class="grid-2">
         <div class="card">
-          <div class="card-title">Python 外部检测与 JSON 上报骨架 <button class="btn btn-sm" id="copy-py-btn">复制代码</button></div>
+          <div class="card-title">原神工具实操与 CI 上报命令（<code>automation/</code>） <button class="btn btn-sm" id="copy-py-btn">复制命令</button></div>
           <pre class="code-block"><code>${escHtml(plan.pythonSnippet)}</code></pre>
         </div>
         <div class="card">
-          <div class="card-title">标准 JSON Schema（看板自动识别） <button class="btn btn-sm" id="copy-schema-btn">复制 Schema</button></div>
+          <div class="card-title">Schema v2 标准格式（含 CI 溯源字段） <button class="btn btn-sm" id="copy-schema-btn">复制 Schema</button></div>
           <pre class="code-block"><code>${escHtml(window.DATA_HUB.jsonSchemaDoc)}</code></pre>
         </div>
       </div>
@@ -1056,8 +1469,101 @@
     const container = document.getElementById("view-autohub");
     container.innerHTML = html;
 
+    async function fetchCiWorkflowRuns() {
+      const repo = (document.getElementById("ci-repo-input")?.value || state.githubRepo || DEFAULT_REPO).trim();
+      if (!repo || !repo.includes("/")) {
+        state.ciError = "请输入正确的 owner/repo 格式";
+        renderAutoHub();
+        return;
+      }
+      state.githubRepo = repo;
+      safeSet(STORAGE_KEY_GH, repo);
+      state.ciLoading = true;
+      state.ciError = "";
+      renderAutoHub();
+      try {
+        const resp = await fetch(`https://api.github.com/repos/${repo}/actions/runs?per_page=10`, {
+          headers: { Accept: "application/vnd.github+json" }
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}（请确认仓库为 Public 且拼写正确）`);
+        const data = await resp.json();
+        state.ciWorkflowRuns = Array.isArray(data.workflow_runs) ? data.workflow_runs : [];
+        state.ciLastSynced = new Date().toLocaleTimeString();
+      } catch (err) {
+        state.ciError = "拉取 GitHub Actions 状态失败：" + err.message;
+      } finally {
+        state.ciLoading = false;
+        renderAutoHub();
+      }
+    }
+
+    async function syncRemoteAutomationJson() {
+      const repo = (document.getElementById("ci-repo-input")?.value || state.githubRepo || DEFAULT_REPO).trim();
+      const candidates = [];
+      if (window.location.protocol !== "file:") {
+        candidates.push({ url: "./data/automation-runs.json?t=" + Date.now(), label: "在线实时加载：./data/automation-runs.json" });
+      }
+      if (repo && repo.includes("/")) {
+        candidates.push({
+          url: `https://raw.githubusercontent.com/${repo}/HEAD/web/data/automation-runs.json?t=${Date.now()}`,
+          label: `GitHub Raw 同步：${repo}@HEAD`
+        });
+      }
+      for (const c of candidates) {
+        try {
+          const resp = await fetch(c.url);
+          if (!resp.ok) continue;
+          const json = await resp.json();
+          if (Array.isArray(json.runs)) {
+            state.autoData = json;
+            state.autoSource = `${c.label}（${json.runs.length} 条真实记录）`;
+            renderOverview();
+            renderAutoHub();
+            return;
+          }
+        } catch {}
+      }
+      alert("未能从在线地址拉取最新 JSON，请确认网络连通或使用“导入真实 report.json 预览”。");
+    }
+
     container.querySelectorAll("[data-agame]").forEach(btn => {
       btn.addEventListener("click", () => { state.autoGameFilter = btn.dataset.agame; renderAutoHub(); });
+    });
+
+    container.querySelectorAll(".toggle-run-detail").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const rid = btn.dataset.runid;
+        if (state.expandedRuns.has(rid)) state.expandedRuns.delete(rid);
+        else state.expandedRuns.add(rid);
+        renderAutoHub();
+      });
+    });
+
+    container.querySelectorAll(".finding-to-bug-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const run = (state.autoData.runs || []).find(r => r.id === btn.dataset.runid);
+        const f = run?.findings?.[Number(btn.dataset.fidx)];
+        if (!run || !f) return;
+        state.bugPrefill = {
+          game: run.game,
+          severity: f.severity || "P1",
+          module: f.caseId || f.rule || "非侵入巡检",
+          runId: run.id,
+          title: `[${f.rule}] ${f.msg.slice(0, 48)}`,
+          steps: `1. 运行 qa-observer (${run.mode}) 巡检套件：${run.suite}（版本 ${run.version}）；\n2. 观测规则触发：${f.rule}（Case ${f.caseId}）；\n3. 复核对应证据截图：${f.evidencePath || "见本地 automation/reports/runs/" + run.id}。`,
+          expected: "客户端运行、渲染与 UI 表现符合基线阈值，无视觉/文本/性能告警。",
+          actual: f.msg
+        };
+        renderFeedback();
+        switchSection("feedback");
+      });
+    });
+
+    document.getElementById("sync-remote-json-btn")?.addEventListener("click", syncRemoteAutomationJson);
+    document.getElementById("fetch-ci-runs-btn")?.addEventListener("click", fetchCiWorkflowRuns);
+    document.getElementById("empty-sync-ci-btn")?.addEventListener("click", fetchCiWorkflowRuns);
+    document.getElementById("empty-copy-cli-btn")?.addEventListener("click", () => {
+      navigator.clipboard?.writeText(cliPushCmd).then(() => alert("已复制原神实操 + CI 上报命令！"));
     });
 
     document.getElementById("import-auto-json")?.addEventListener("change", e => {
@@ -1067,15 +1573,114 @@
       reader.onload = () => {
         try {
           const parsed = JSON.parse(String(reader.result));
-          if (!Array.isArray(parsed.runs)) throw new Error("JSON 缺少 runs 数组");
-          state.autoData = parsed;
-          state.autoSource = `本地导入文件：${file.name}`;
+          const extracted = extractRunsFromImportedJson(parsed);
+          for (const r of extracted.runs) {
+            const errs = validateClientRunPayload(r);
+            if (errs.length) throw new Error(errs.join("；"));
+          }
+          if (extracted.isStore) {
+            state.autoData = extracted.store;
+          } else {
+            const existing = [...(state.autoData.runs || [])];
+            for (const r of extracted.runs) {
+              const previewRun = { ...r, ci: { ...(r.ci || {}), provider: (r.ci && r.ci.provider) || "local-preview" } };
+              const idx = existing.findIndex(x => x.id === previewRun.id);
+              if (idx >= 0) existing[idx] = previewRun;
+              else existing.unshift(previewRun);
+            }
+            state.autoData = { ...state.autoData, runs: existing, updatedAt: new Date().toISOString().slice(0, 19) + "Z" };
+          }
+          state.autoSource = `本地真实文件预览：${file.name}`;
+          renderOverview();
           renderAutoHub();
         } catch (err) {
-          alert("导入失败，请确认 JSON 符合标准 Schema：" + err.message);
+          alert("导入被拒绝（严格反编造校验）：" + err.message);
         }
       };
       reader.readAsText(file, "utf-8");
+    });
+
+    document.getElementById("ci-load-draft-file")?.addEventListener("change", e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.ciDraftJson = String(reader.result || "");
+        state.ciDispatchMsg = "";
+        state.ciDispatchErr = "";
+        renderAutoHub();
+      };
+      reader.readAsText(file, "utf-8");
+    });
+
+    document.getElementById("ci-draft-json")?.addEventListener("input", e => {
+      state.ciDraftJson = e.target.value;
+    });
+    document.getElementById("ci-pat-input")?.addEventListener("input", e => {
+      state.ciTokenMemory = e.target.value.trim();
+    });
+
+    document.getElementById("ci-validate-draft-btn")?.addEventListener("click", () => {
+      state.ciDispatchMsg = "";
+      state.ciDispatchErr = "";
+      try {
+        const parsed = JSON.parse(state.ciDraftJson || "");
+        const extracted = extractRunsFromImportedJson(parsed);
+        if (!extracted.runs.length) throw new Error("未包含任何巡检记录");
+        for (const r of extracted.runs) {
+          const errs = validateClientRunPayload(r);
+          if (errs.length) throw new Error(errs.join("；"));
+        }
+        state.ciDispatchMsg = `✓ 校验通过：共 ${extracted.runs.length} 条真实记录（${extracted.runs[0].id}），符合 Schema v2 且非编造数据，可安全上报 CI！`;
+      } catch (err) {
+        state.ciDispatchErr = "校验未通过：" + err.message;
+      }
+      renderAutoHub();
+    });
+
+    document.getElementById("ci-copy-curl-btn")?.addEventListener("click", () => {
+      const repo = (document.getElementById("ci-repo-input")?.value || state.githubRepo || DEFAULT_REPO).trim();
+      const cmd = `# CLI 一键推送（推荐）：\nuv run qa-observer ci push --report reports/runs/<RUN-ID>/report.json --repo ${repo}\n\n# 或通过 GitHub Actions API (curl) 触发 repository_dispatch：\ncurl -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/${repo}/dispatches -d '{"event_type":"automation-run-report","client_payload":{"run":<REAL_REPORT_JSON>}}'`;
+      navigator.clipboard?.writeText(cmd).then(() => alert("已复制 CI 上报命令！"));
+    });
+
+    document.getElementById("ci-dispatch-btn")?.addEventListener("click", async () => {
+      const repo = (document.getElementById("ci-repo-input")?.value || state.githubRepo || DEFAULT_REPO).trim();
+      const pat = (document.getElementById("ci-pat-input")?.value || state.ciTokenMemory).trim();
+      state.ciDispatchMsg = "";
+      state.ciDispatchErr = "";
+      try {
+        if (!repo || !repo.includes("/")) throw new Error("请先填写正确的 GitHub 仓库 owner/repo");
+        if (!pat) throw new Error("请填入具备仓库 Contents: Write 权限的 GitHub Fine-grained PAT，或使用 CLI 命令在终端上报");
+        const parsed = JSON.parse(state.ciDraftJson || "");
+        const extracted = extractRunsFromImportedJson(parsed);
+        if (extracted.runs.length !== 1) throw new Error("在线 Dispatch 每次请提交单轮真实 report.json");
+        const run = extracted.runs[0];
+        const errs = validateClientRunPayload(run);
+        if (errs.length) throw new Error(errs.join("；"));
+
+        const resp = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+          method: "POST",
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${pat}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            event_type: "automation-run-report",
+            client_payload: { run, submitted_by: "web-dashboard" }
+          })
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`GitHub API HTTP ${resp.status}: ${text.slice(0, 180)}`);
+        }
+        state.ciDispatchMsg = `🚀 已成功触发 GitHub Actions CI 入库（${run.id}）！约 20~40 秒后点击“拉取 CI 状态”与“同步仓库最新数据”即可看到最新记录。`;
+      } catch (err) {
+        state.ciDispatchErr = "CI 上报失败：" + err.message;
+      }
+      renderAutoHub();
     });
 
     document.getElementById("export-auto-json")?.addEventListener("click", () => {
@@ -1099,60 +1704,59 @@
   /* ---------- 9. Bug Feedback & GitHub Pages Deployment ---------- */
   function renderFeedback() {
     const filteredBugs = state.bugs.filter(b => state.bugStatusFilter === "ALL" || b.status === state.bugStatusFilter);
+    const pf = state.bugPrefill || {};
 
     const html = `
       <div class="callout success">
         <strong>纯静态 GitHub Pages 如何实现真正的 Bug 反馈闭环？</strong>
-        <br/>本模块采用<strong>双模架构</strong>：① <strong>本地缺陷看板</strong>（表单即时提单、状态流转、一键导出 Markdown/JSON，适合离线演示与复盘）；② <strong>GitHub Issues 零后端持久化</strong>（填写你的 <code>owner/repo</code> 后，一键生成结构化 Issue 提交入库，并直接通过公开 API 拉取展示仓库里的真实 Bug Issues！）。
+        <br/>本模块采用<strong>真实数据双模架构（已清零全部编造示例缺陷）</strong>：① <strong>本地缺陷看板</strong>（表单手工提单或从第 8 节真实自动化 Finding 一键带入，状态流转并导出 Markdown/JSON）；② <strong>GitHub Issues 零后端持久化</strong>（填写 <code>${escHtml(state.githubRepo || DEFAULT_REPO)}</code> 一键生成结构化 Issue 落库，并实时拉取仓库真实 Issues！）。
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <h3 class="card-title">提交新 Bug 反馈单</h3>
+          <h3 class="card-title">提交新 Bug 反馈单 ${state.bugPrefill ? `<span class="pill pill-a">已带入真实自动化异常</span>` : ""}</h3>
           <form id="bug-submit-form">
             <div class="form-grid">
               <div class="form-field">
                 <label class="form-label">所属游戏</label>
                 <select class="form-select" id="bf-game">
-                  <option>明日方舟：终末地</option>
-                  <option>绝区零</option>
-                  <option>崩坏：星穹铁道</option>
-                  <option>原神</option>
-                  <option>在研UE项目 / 其他</option>
+                  ${["原神", "崩坏：星穹铁道", "绝区零", "明日方舟：终末地", "在研UE项目 / 其他"].map(g => `<option ${pf.game === g ? "selected" : ""}>${g}</option>`).join("")}
                 </select>
               </div>
               <div class="form-field">
                 <label class="form-label">严重级别</label>
                 <select class="form-select" id="bf-sev">
-                  <option value="P0">P0 · 阻塞/闪退/资损</option>
-                  <option value="P1" selected>P1 · 核心功能/状态异常</option>
-                  <option value="P2">P2 · UI表现/偶现异常</option>
-                  <option value="P3">P3 · 文案/体验优化</option>
+                  ${[
+                    ["P0", "P0 · 阻塞/闪退/资损"],
+                    ["P1", "P1 · 核心功能/状态异常"],
+                    ["P2", "P2 · UI表现/偶现异常"],
+                    ["P3", "P3 · 文案/体验优化"]
+                  ].map(([val, lbl]) => `<option value="${val}" ${(pf.severity || "P1") === val ? "selected" : ""}>${lbl}</option>`).join("")}
                 </select>
               </div>
               <div class="form-field">
                 <label class="form-label">模块标签</label>
-                <input class="form-input" id="bf-mod" placeholder="如：手柄热切换 / 背包 / 弱网重连" required />
+                <input class="form-input" id="bf-mod" value="${escHtml(pf.module || "")}" placeholder="如：手柄热切换 / 背包 / 弱网重连" required />
               </div>
               <div class="form-field">
                 <label class="form-label">关联自动化 Run ID（选填）</label>
-                <input class="form-input" id="bf-runid" placeholder="如：RUN-20261120-01" />
+                <input class="form-input" id="bf-runid" value="${escHtml(pf.runId || "")}" placeholder="如：RUN-YS-20261120-183000-a1b2" />
               </div>
               <div class="form-field full">
                 <label class="form-label">Bug 标题</label>
-                <input class="form-input" id="bf-title" placeholder="简明描述：触发条件 + 异常表现" required />
+                <input class="form-input" id="bf-title" value="${escHtml(pf.title || "")}" placeholder="简明描述：触发条件 + 异常表现" required />
               </div>
               <div class="form-field full">
                 <label class="form-label">复现步骤</label>
-                <textarea class="form-textarea" id="bf-steps" placeholder="1. 前置条件...&#10;2. 关键操作...&#10;3. 观察结果..." required></textarea>
+                <textarea class="form-textarea" id="bf-steps" placeholder="1. 前置条件...&#10;2. 关键操作...&#10;3. 观察结果..." required>${escHtml(pf.steps || "")}</textarea>
               </div>
               <div class="form-field">
                 <label class="form-label">预期结果</label>
-                <input class="form-input" id="bf-exp" placeholder="应符合怎样的规则/表现" required />
+                <input class="form-input" id="bf-exp" value="${escHtml(pf.expected || "")}" placeholder="应符合怎样的规则/表现" required />
               </div>
               <div class="form-field">
                 <label class="form-label">实际结果</label>
-                <input class="form-input" id="bf-act" placeholder="实际发生的异常现象" required />
+                <input class="form-input" id="bf-act" value="${escHtml(pf.actual || "")}" placeholder="实际发生的异常现象" required />
               </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
@@ -1167,7 +1771,7 @@
           <div class="form-field">
             <label class="form-label">你的 GitHub 仓库（格式：<code>username/repo-name</code>）</label>
             <div style="display:flex;gap:8px;">
-              <input class="form-input" id="gh-repo-input" value="${escHtml(state.githubRepo)}" placeholder="例如：yourname/game-qa-portfolio" />
+              <input class="form-input" id="gh-repo-input" value="${escHtml(state.githubRepo)}" placeholder="例如：supercoko/Game_QA_Experience_Web" />
               <button class="btn btn-primary btn-sm" id="save-gh-repo-btn">保存</button>
               <button class="btn btn-sm" id="fetch-gh-issues-btn">拉取真实 Issues</button>
             </div>
@@ -1189,8 +1793,8 @@
             </div>
           ` : `
             <div style="background:var(--bg-subtle);padding:12px;border-radius:8px;font-size:12.8px;color:var(--text-secondary);">
-              <strong>为什么推荐 GitHub Pages + GitHub Issues？</strong><br/>
-              面试官打开你的在线作品集网址，既能直接看 4,134 条线上缺陷分析与非侵入自动化跑出来的 JSON 图表，又能点进真实可协作的 Bug Issue 闭环——0 服务器费用、长期在线不宕机！
+              <strong>为什么推荐 GitHub Pages + GitHub Actions CI + GitHub Issues？</strong><br/>
+              面试官打开你的在线作品集网址，看到的是 100% 真实巡检入库的 CI 图表与真实的 GitHub Issues 协作闭环，零虚构数据、0 服务器费用、长期在线！
             </div>
           `}
         </div>
@@ -1208,7 +1812,7 @@
       </div>
 
       <div>
-        ${filteredBugs.map(b => `
+        ${filteredBugs.length ? filteredBugs.map(b => `
           <div class="bug-card">
             <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
               <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;">
@@ -1232,10 +1836,15 @@
               <div><strong>实际结果：</strong>${escHtml(b.actual)}</div>
             </div>
           </div>
-        `).join("")}
+        `).join("") : `
+          <div class="empty-state" style="margin-bottom:18px;">
+            <h4>📋 当前尚无本地缺陷记录（已移除编造样例 Bug）</h4>
+            <p>可通过上方表单记录实测发现的问题，或在“第 8 节 · 非侵入自动化 & CI 看板”中对真实检出的异常点击“转入 Bug 反馈”，也可直接点击右侧“拉取真实 Issues”同步 GitHub 仓库缺陷。</p>
+          </div>
+        `}
       </div>
 
-      <h3 style="margin:26px 0 12px;font-size:17px;">GitHub Pages 一键部署方案（已在本项目配置好 Workflow）</h3>
+      <h3 style="margin:26px 0 12px;font-size:17px;">GitHub Pages & CI 数据入库一键部署方案（已配置完整 Workflow）</h3>
       <div class="grid-2">
         ${window.DATA_HUB.githubDeploySteps.map(s => `
           <div class="card">
@@ -1269,6 +1878,7 @@
       e.preventDefault();
       const rec = readForm();
       state.bugs.unshift(rec);
+      state.bugPrefill = null;
       saveBugs();
       renderFeedback();
     });
@@ -1385,7 +1995,8 @@
     });
     (state.autoData.runs || []).forEach(r => {
       if ((r.id + r.game + r.suite + JSON.stringify(r.findings || [])).toLowerCase().includes(q)) {
-        hits.push({ sec: "autohub", tag: `自动化 · ${r.id}`, title: `${r.game} - ${r.suite}`, sub: `${r.status} (${r.passRate}%)` });
+        const pr = r.passRate !== null && r.passRate !== undefined ? ` (${r.passRate}%)` : "";
+        hits.push({ sec: "autohub", tag: `自动化 · ${r.id}`, title: `${r.game} - ${r.suite}`, sub: `${r.status}${pr}` });
       }
     });
     state.bugs.forEach(b => {
@@ -1431,7 +2042,10 @@
         const json = await resp.json();
         if (Array.isArray(json.runs)) {
           state.autoData = json;
-          state.autoSource = "在线实时加载：./data/automation-runs.json (GitHub Pages)";
+          state.autoSource = json.runs.length
+            ? `在线实时加载：./data/automation-runs.json（${json.runs.length} 条 CI/实测记录）`
+            : "在线实时加载：./data/automation-runs.json（当前 0 条，等待真实 CI 入库）";
+          renderOverview();
           renderAutoHub();
         }
       }
@@ -1456,6 +2070,7 @@
     renderOnline();
     renderMethods();
     renderStudy();
+    renderRoadmap();
     renderAutoHub();
     renderFeedback();
     updateProgressBars();

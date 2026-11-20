@@ -1,0 +1,65 @@
+// Jenkins Declarative Pipeline — Windows 执行机运行原神非侵入观测并自动上报至 GitHub CI / 网站看板
+// 呼应简历工程体系：Windows 执行机调度 -> 非侵入巡检与证据归档 -> GitHub CI 校验入库 -> 飞书通知
+
+pipeline {
+  agent { label 'windows-gpu-qa' }
+
+  parameters {
+    choice(name: 'MODE', choices: ['observe', 'replay', 'active-ui'], description: '巡检模式（默认 100% 零输入 observe）')
+    string(name: 'DURATION_SEC', defaultValue: '120', description: 'observe 模式持续秒数')
+    string(name: 'REPLAY_INPUT', defaultValue: '', description: 'replay 模式下的真实录屏/截图目录')
+    string(name: 'PRESENTMON_CSV', defaultValue: '', description: '可选：replay 模式下的 PresentMon CSV 路径')
+    string(name: 'GAME_VERSION', defaultValue: '', description: '可选：覆盖版本号（留空自动读取 config.ini）')
+    booleanParam(name: 'PUSH_TO_GITHUB_CI', defaultValue: true, description: '跑完自动通过 repository_dispatch 推送到 GitHub Actions 入库并刷新 Pages 看板')
+  }
+
+  environment {
+    GITHUB_REPO = 'supercoko/Game_QA_Experience_Web'
+    GITHUB_TOKEN = credentials('github-qa-dispatch-token')
+    // 可选：飞书机器人 Webhook（在 Jenkins Credentials 中配置）
+    // QA_WEBHOOK_URL = credentials('feishu-qa-webhook')
+  }
+
+  stages {
+    stage('Preflight & Doctor') {
+      steps {
+        dir('automation') {
+          powershell '''
+            uv sync --extra dxgi --extra ocr
+            uv run qa-observer genshin doctor
+          '''
+        }
+      }
+    }
+
+    stage('Run Genshin Non-Intrusive Observation') {
+      steps {
+        dir('automation') {
+          powershell '''
+            $extra = @()
+            if ($env:GAME_VERSION) { $extra += @("--version", $env:GAME_VERSION) }
+            if ($env:PUSH_TO_GITHUB_CI -eq "true") {
+              $extra += @("--ci-push", "--ci-repo", $env:GITHUB_REPO)
+            }
+
+            if ($env:MODE -eq "observe") {
+              uv run qa-observer genshin observe --duration $env:DURATION_SEC @extra
+            } elseif ($env:MODE -eq "replay") {
+              if (-not $env:REPLAY_INPUT) { throw "REPLAY_INPUT is required for replay mode" }
+              if ($env:PRESENTMON_CSV) { $extra += @("--presentmon-csv", $env:PRESENTMON_CSV) }
+              uv run qa-observer genshin replay --input $env:REPLAY_INPUT @extra
+            } else {
+              uv run qa-observer genshin active-ui --confirm-safe-zone @extra
+            }
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'automation/reports/runs/**/report.json, automation/reports/runs/**/summary.md, automation/reports/runs/**/evidence/*.png', allowEmptyArchive: true
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://supercoko.github.io/Game_QA_Experience_Web/data/automation-runs.schema.json",
+  "title": "Non-Intrusive Game QA Automation Runs Store (Schema v2)",
+  "type": "object",
+  "required": ["schemaVersion", "policy", "ci", "runs"],
+  "properties": {
+    "schemaVersion": { "const": "2.0" },
+    "updatedAt": { "type": ["string", "null"] },
+    "repository": { "type": "string" },
+    "policy": { "const": "real-data-only" },
+    "note": { "type": "string" },
+    "ci": {
+      "type": "object",
+      "required": ["pipeline", "ingestWorkflow", "deployWorkflow", "totalIngestedRuns"],
+      "properties": {
+        "pipeline": { "type": "string" },
+        "ingestWorkflow": { "type": "string" },
+        "qualityGateWorkflow": { "type": "string" },
+        "deployWorkflow": { "type": "string" },
+        "lastIngestAt": { "type": ["string", "null"] },
+        "lastRunId": { "type": ["string", "null"] },
+        "lastJobUrl": { "type": ["string", "null"] },
+        "lastCommitSha": { "type": ["string", "null"] },
+        "totalIngestedRuns": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "schemaVersion",
+          "dataOrigin",
+          "timestamp",
+          "date",
+          "game",
+          "gameKey",
+          "version",
+          "suite",
+          "mode",
+          "status",
+          "totalCases",
+          "passedCases",
+          "failedCases",
+          "metrics",
+          "ci",
+          "cases",
+          "findings"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 4 },
+          "schemaVersion": { "const": "2.0" },
+          "dataOrigin": { "enum": ["real_capture", "real_replay"] },
+          "timestamp": { "type": "string" },
+          "date": { "type": "string" },
+          "game": { "type": "string" },
+          "gameKey": { "type": "string" },
+          "version": { "type": "string" },
+          "suite": { "type": "string" },
+          "mode": { "enum": ["observe", "active-ui", "replay"] },
+          "status": { "enum": ["PASS", "WARN", "FAIL"] },
+          "passRate": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+          "totalCases": { "type": "integer", "minimum": 0 },
+          "passedCases": { "type": "integer", "minimum": 0 },
+          "warnedCases": { "type": "integer", "minimum": 0 },
+          "failedCases": { "type": "integer", "minimum": 0 },
+          "skippedCases": { "type": "integer", "minimum": 0 },
+          "durationSec": { "type": "number", "minimum": 0 },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "coldStartSec": { "type": ["number", "null"], "minimum": 0 },
+              "avgFps": { "type": ["number", "null"], "minimum": 0 },
+              "low1Fps": { "type": ["number", "null"], "minimum": 0 },
+              "low01Fps": { "type": ["number", "null"], "minimum": 0 },
+              "p50FrameTimeMs": { "type": ["number", "null"], "minimum": 0 },
+              "p95FrameTimeMs": { "type": ["number", "null"], "minimum": 0 },
+              "p99FrameTimeMs": { "type": ["number", "null"], "minimum": 0 },
+              "maxFrameTimeMs": { "type": ["number", "null"], "minimum": 0 },
+              "hitchCount50ms": { "type": ["integer", "null"], "minimum": 0 },
+              "hitchCount100ms": { "type": ["integer", "null"], "minimum": 0 },
+              "memMbAvg": { "type": ["number", "null"], "minimum": 0 },
+              "memMbPeak": { "type": ["number", "null"], "minimum": 0 },
+              "memLeakSlopeMbPerMin": { "type": ["number", "null"] },
+              "cpuPctAvg": { "type": ["number", "null"], "minimum": 0 },
+              "framesAnalyzed": { "type": "integer", "minimum": 0 },
+              "teleportLoadsSec": { "type": "array", "items": { "type": "number" } }
+            }
+          },
+          "ci": {
+            "type": "object",
+            "required": ["provider"],
+            "properties": {
+              "provider": { "type": "string" },
+              "triggeredBy": { "type": ["string", "null"] },
+              "workflow": { "type": ["string", "null"] },
+              "jobRunId": { "type": ["string", "null"] },
+              "jobRunNumber": { "type": ["integer", "null"] },
+              "jobUrl": { "type": ["string", "null"] },
+              "commitSha": { "type": ["string", "null"] },
+              "branch": { "type": ["string", "null"] },
+              "runner": { "type": ["string", "null"] },
+              "ingestedAt": { "type": ["string", "null"] }
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["caseId", "name", "status"],
+              "properties": {
+                "caseId": { "type": "string" },
+                "name": { "type": "string" },
+                "status": { "enum": ["PASS", "WARN", "FAIL", "SKIP"] },
+                "durationSec": { "type": "number" },
+                "detail": { "type": "string" }
+              }
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["caseId", "severity", "rule", "msg"],
+              "properties": {
+                "caseId": { "type": "string" },
+                "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+                "rule": { "type": "string" },
+                "msg": { "type": "string" },
+                "timestamp": { "type": ["string", "null"] },
+                "evidencePath": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

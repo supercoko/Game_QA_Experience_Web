@@ -7,20 +7,26 @@ on:
       - "web/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Optional git ref/SHA to deploy after CI data ingestion"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   deploy:
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
     env:
-      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,6 +34,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Validate real-data-only automation store (Schema v2)
+        run: python3 automation/scripts/ci_ingest.py validate --store web/data/automation-runs.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

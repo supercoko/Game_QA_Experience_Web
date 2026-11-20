@@ -55,15 +55,21 @@
           </button>
         </li>
         <li class="nav-item">
+          <button class="nav-btn" data-sec="roadmap">
+            <span>★ 面评诊断 & 8周路线</span>
+            <span class="nav-badge" style="background:var(--danger-soft);color:var(--danger);">必看</span>
+          </button>
+        </li>
+        <li class="nav-item">
           <button class="nav-btn" data-sec="study">
             <span>7. 欠缺知识学习卡片</span>
-            <span class="nav-badge">24 卡</span>
+            <span class="nav-badge">32 卡</span>
           </button>
         </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="autohub">
-            <span>8. 非侵入自动化 & 看板</span>
-            <span class="nav-badge">Live</span>
+            <span>8. 非侵入自动化 & CI 看板</span>
+            <span class="nav-badge">CI+原神</span>
           </button>
         </li>
         <li class="nav-item">
@@ -87,7 +93,7 @@
         <div class="mastery-box">
           <div class="mastery-header">
             <span>知识卡片巩固</span>
-            <span id="fc-progress-text">0 / 24 (0%)</span>
+            <span id="fc-progress-text">0 / 32 (0%)</span>
           </div>
           <div class="progress-track">
             <div class="progress-fill" id="fc-progress-bar" style="width:0%"></div>
@@ -122,6 +128,7 @@
         <section id="view-online" class="section-view"></section>
         <section id="view-methods" class="section-view"></section>
         <section id="view-study" class="section-view"></section>
+        <section id="view-roadmap" class="section-view"></section>
         <section id="view-autohub" class="section-view"></section>
         <section id="view-feedback" class="section-view"></section>
       </main>
@@ -133,6 +140,7 @@
   <script src="data-online.js"></script>
   <script src="data-methods.js"></script>
   <script src="data-study.js"></script>
+  <script src="data-roadmap.js"></script>
   <script src="data-hub.js"></script>
   <script src="app.js"></script>
 </body>

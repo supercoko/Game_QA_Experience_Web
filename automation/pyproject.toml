@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qa-observer"
+version = "0.1.0"
+description = "Non-invasive external black-box QA observation & CI reporting tool for live PC game clients (Genshin Impact first)"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26.0",
+    "opencv-python>=4.9.0",
+    "mss>=9.0.1",
+    "psutil>=5.9.8",
+    "PyYAML>=6.0.1",
+    "Pillow>=10.3.0",
+]
+
+[project.optional-dependencies]
+dxgi = [
+    "dxcam>=0.0.5; sys_platform == 'win32'",
+]
+ocr = [
+    "rapidocr-onnxruntime>=1.3.24",
+]
+all = [
+    "dxcam>=0.0.5; sys_platform == 'win32'",
+    "rapidocr-onnxruntime>=1.3.24",
+]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+qa-observer = "qa_observer.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[[tool.uv.index]]
+name = "tsu"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default=true

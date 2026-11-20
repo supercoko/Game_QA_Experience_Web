@@ -1,0 +1,148 @@
+# 原神 PC 线上客户端 — 非侵入式外部观测配置文件
+# 严格遵守合规红线：零内存读写、零 DLL 注入、零封包篡改、零挂机刷资源。
+
+game: "原神"
+game_key: "genshin"
+suite_default: "genshin-non-intrusive-observe"
+
+process:
+  names:
+    - "YuanShen.exe"
+    - "GenshinImpact.exe"
+  window_classes:
+    - "UnityWndClass"
+  window_titles:
+    - "原神"
+    - "Genshin Impact"
+  crash_dump_dirs:
+    - "%LOCALAPPDATA%\\Temp\\miHoYo\\原神\\Crashes"
+    - "%LOCALAPPDATA%\\Temp\\miHoYo\\YuanShen\\Crashes"
+    - "%LOCALAPPDATA%\\Temp\\Cognosphere\\Genshin Impact\\Crashes"
+    - "%LOCALAPPDATA%\\CrashDumps"
+
+capture:
+  # auto: 优先 dxcam (DXGI Desktop Duplication)，自动降级 mss -> pil
+  backend: "auto"
+  sample_fps: 2.0
+  min_width: 640
+  min_height: 360
+  ocr_interval_sec: 4.0
+  vlm_max_frames: 4
+
+thresholds:
+  # 连续黑屏超过该秒数触发 BLACK_SCREEN
+  black_screen_luma_max: 6.0
+  black_screen_std_max: 4.0
+  black_screen_hold_sec: 6.0
+  # 画面冻结（帧间平均像素绝对差极低）持续超过该秒数触发 FRAME_FREEZE
+  freeze_mad_max: 0.35
+  freeze_hold_sec: 15.0
+  # 纯色异常（非全黑/非传送白屏）标准差下限
+  solid_color_std_max: 2.5
+  solid_color_hold_sec: 6.0
+  # Unity 紫红缺贴图 (HSV H:140~168, S>=140, V>=140) 面积占比阈值
+  magenta_ratio_max: 0.03
+  # 原神特色白色传送加载界面判定与耗时阈值
+  teleport_white_luma_min: 228.0
+  teleport_white_std_max: 28.0
+  teleport_min_hold_sec: 0.8
+  teleport_warn_sec: 15.0
+  teleport_timeout_sec: 35.0
+  # 帧时间与性能基线阈值（仅在 PresentMon 挂载且采集到真实数据时判定）
+  hitch_warn_ms: 50.0
+  hitch_fail_ms: 100.0
+  hitch_fail_count: 10
+  low1_fps_warn: 45.0
+  low1_fps_fail: 30.0
+  # 内存持续增长斜率告警（MB/分钟，至少持续 2 分钟观测才生效）
+  mem_leak_slope_mb_per_min: 80.0
+  # OCR 文本贴边溢出判定像素阈值
+  ocr_edge_margin_px: 3
+  # 模板匹配相似度阈值
+  template_match_threshold: 0.78
+
+# 归一化 ROI 坐标 [x1, y1, x2, y2]，自动适配 16:9 / 21:9 / 任意窗口分辨率
+rois:
+  top_left_minimap: [0.00, 0.00, 0.22, 0.28]
+  top_right_icons: [0.70, 0.00, 1.00, 0.16]
+  bottom_prompts: [0.55, 0.85, 0.99, 0.99]
+  bottom_right_uid: [0.80, 0.94, 1.00, 1.00]
+  center_loading: [0.24, 0.40, 0.76, 0.60]
+  center_popup: [0.22, 0.28, 0.78, 0.72]
+
+# OCR 检测规则：未翻译 Key / 占位符漏出 / 重连弹窗识别
+ocr_rules:
+  forbidden_patterns:
+    - "\\b(?:UI|TEXT|STR|ITEM|QUEST|SKILL|AVATAR|NPC)_[A-Z0-9_]{3,}\\b"
+    - "\\{[0-9]+\\}"
+    - "%[0-9]*[sdif]"
+    - "#N/A"
+    - "\\bMissing\\s+Localization\\b"
+    - "□{2,}"
+  reconnect_keywords:
+    - "重新连接"
+    - "连接已断开"
+    - "网络连接异常"
+    - "Reconnecting"
+    - "Connection lost"
+  kbm_prompt_tokens:
+    - "Esc"
+    - "Tab"
+    - "Shift"
+    - "Ctrl"
+    - "Alt"
+    - "F1"
+    - "F2"
+    - "F3"
+    - "F4"
+    - "鼠标"
+  gamepad_prompt_tokens:
+    - "LB"
+    - "RB"
+    - "LT"
+    - "RT"
+    - "L1"
+    - "R1"
+    - "L2"
+    - "R2"
+    - "L3"
+    - "R3"
+    - "Options"
+
+# 仅在显式开启 `--mode active-ui --confirm-safe-zone` 时执行的公共安全界面巡检步骤
+active_ui:
+  min_action_interval_sec: 1.2
+  settle_sec: 2.0
+  kill_switch_vk: 0x7B  # F12 紧急中止
+  steps:
+    - case_id: "YS-UI-PAIMON"
+      name: "派蒙主菜单视觉与 OCR 巡检"
+      open_key: "ESC"
+      close_key: "ESC"
+      expected_keywords: ["派蒙", "背包", "角色", "设置", "退出", "Paimon", "Inventory", "Settings"]
+    - case_id: "YS-UI-BAG"
+      name: "背包界面视觉与文本溢出巡检"
+      open_key: "B"
+      close_key: "ESC"
+      expected_keywords: ["背包", "武器", "圣遗物", "养成道具", "任务", "Inventory", "Weapons"]
+    - case_id: "YS-UI-CHAR"
+      name: "角色属性界面视觉与渲染巡检"
+      open_key: "C"
+      close_key: "ESC"
+      expected_keywords: ["属性", "武器", "圣遗物", "命之座", "天赋", "Attributes", "Talents"]
+    - case_id: "YS-UI-HANDBOOK"
+      name: "冒险之证界面 OCR 巡检"
+      open_key: "F1"
+      close_key: "ESC"
+      expected_keywords: ["冒险之证", "见闻", "委托", "秘境", "讨伐", "Adventurer", "Handbook"]
+    - case_id: "YS-UI-MAP"
+      name: "大地图加载与底图完整度巡检"
+      open_key: "M"
+      close_key: "ESC"
+      expected_keywords: ["地图", "蒙德", "璃月", "稻妻", "须弥", "枫丹", "纳塔", "Map"]
+
+ci:
+  repo: "supercoko/Game_QA_Experience_Web"
+  event_type: "automation-run-report"
+  store_path: "web/data/automation-runs.json"
+  inbox_dir: "automation/reports/inbox"

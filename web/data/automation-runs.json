@@ -1,148 +1,19 @@
 {
-  "updatedAt": "2026-11-20 16:50",
-  "note": "标准自动化巡检数据文件：本地 Python 非侵入脚本运行后追加写入此 JSON 并推送 GitHub，网页端（GitHub Pages）将自动拉取并渲染最新数据。",
-  "runs": [
-    {
-      "id": "RUN-20261120-01",
-      "date": "2026-11-20",
-      "game": "明日方舟：终末地",
-      "version": "丹青渡 (2026.10)",
-      "suite": "冷启动 + 地图缩放 + 手柄热切视觉巡检",
-      "mode": "非侵入黑盒 (DXGI+OCR+PresentMon)",
-      "status": "WARN",
-      "passRate": 91.7,
-      "totalCases": 12,
-      "passedCases": 11,
-      "failedCases": 1,
-      "coldStartSec": 18.4,
-      "avgFps": 59.6,
-      "low1Fps": 47.2,
-      "memMb": 4210,
-      "findings": [
-        {
-          "caseId": "NI-ZMD-04",
-          "severity": "P1",
-          "rule": "OCR_TIMER_MISSING",
-          "msg": "玩法倒计时界面执行键鼠->手柄热切换后，OCR 倒计时区域消失 1.8s（疑似 UI 重建）"
-        }
-      ]
-    },
-    {
-      "id": "RUN-20261119-02",
-      "date": "2026-11-19",
-      "game": "绝区零",
-      "version": "3.3 重返天空的旅程",
-      "suite": "多分辨率 UI 裁切 + PresentMon 帧率基线",
-      "mode": "非侵入黑盒 (DXGI+CV+PresentMon)",
-      "status": "PASS",
-      "passRate": 100.0,
-      "totalCases": 15,
-      "passedCases": 15,
-      "failedCases": 0,
-      "coldStartSec": 14.2,
-      "avgFps": 118.4,
-      "low1Fps": 88.5,
-      "memMb": 3890,
-      "findings": []
-    },
-    {
-      "id": "RUN-20261118-03",
-      "date": "2026-11-18",
-      "game": "崩坏：星穹铁道",
-      "version": "4.7 此刻将群星付之一笑",
-      "suite": "多界面遍历 OCR + Clumsy 弱网重连校验",
-      "mode": "非侵入黑盒 (OCR+VLM+Clumsy)",
-      "status": "FAIL",
-      "passRate": 87.5,
-      "totalCases": 16,
-      "passedCases": 14,
-      "failedCases": 2,
-      "coldStartSec": 15.8,
-      "avgFps": 60.0,
-      "low1Fps": 52.1,
-      "memMb": 3640,
-      "findings": [
-        {
-          "caseId": "NI-SR-09",
-          "severity": "P2",
-          "rule": "L10N_TEXT_OVERFLOW",
-          "msg": "英文语言下活动弹窗右下角按钮文本超出边框（OCR 边界与按钮框重叠）"
-        },
-        {
-          "caseId": "NI-SR-14",
-          "severity": "P1",
-          "rule": "RECONNECT_UI_STUCK",
-          "msg": "Clumsy 断网 12s 恢复后，重连提示遮罩残留超过 8s 未自动消散"
-        }
-      ]
-    },
-    {
-      "id": "RUN-20261117-04",
-      "date": "2026-11-17",
-      "game": "原神",
-      "version": "7.2 坏灭肇始之时",
-      "suite": "大世界传送加载耗时 + 键鼠/手柄图标模板匹配",
-      "mode": "非侵入黑盒 (DXGI+OpenCV+PresentMon)",
-      "status": "PASS",
-      "passRate": 100.0,
-      "totalCases": 14,
-      "passedCases": 14,
-      "failedCases": 0,
-      "coldStartSec": 16.9,
-      "avgFps": 59.8,
-      "low1Fps": 49.4,
-      "memMb": 4580,
-      "findings": []
-    },
-    {
-      "id": "RUN-20261115-05",
-      "date": "2026-11-15",
-      "game": "绝区零",
-      "version": "3.2 她与她的隐秘往事",
-      "suite": "ESC 暂停计时器 OCR + 动态壁纸 VLM 巡检",
-      "mode": "非侵入黑盒 (OCR+VLM)",
-      "status": "WARN",
-      "passRate": 93.3,
-      "totalCases": 15,
-      "passedCases": 14,
-      "failedCases": 1,
-      "coldStartSec": 14.6,
-      "avgFps": 116.2,
-      "low1Fps": 84.0,
-      "memMb": 3920,
-      "findings": [
-        {
-          "caseId": "NI-ZZZ-11",
-          "severity": "P2",
-          "rule": "VLM_VISUAL_CLIP",
-          "msg": "VLM 巡检标记：特定分辨率下拍照预览框底部 UID 区域发生边缘裁切"
-        }
-      ]
-    },
-    {
-      "id": "RUN-20261112-06",
-      "date": "2026-11-12",
-      "game": "原神",
-      "version": "7.1 往冥府的安魂歌",
-      "suite": "背包/角色/拍照 UI 视觉巡检 + 帧时间毛刺",
-      "mode": "非侵入黑盒 (DXGI+CV+PresentMon)",
-      "status": "PASS",
-      "passRate": 92.9,
-      "totalCases": 14,
-      "passedCases": 13,
-      "failedCases": 1,
-      "coldStartSec": 17.5,
-      "avgFps": 59.5,
-      "low1Fps": 45.8,
-      "memMb": 4620,
-      "findings": [
-        {
-          "caseId": "NI-YS-07",
-          "severity": "P2",
-          "rule": "FRAMETIME_SPIKE",
-          "msg": "首次打开复杂 UI 界面触发 118ms 单帧毛刺（疑似同步加载/PSO编译）"
-        }
-      ]
-    }
-  ]
+  "schemaVersion": "2.0",
+  "updatedAt": null,
+  "repository": "supercoko/Game_QA_Experience_Web",
+  "policy": "real-data-only",
+  "note": "仅收录由非侵入自动化工具实际执行或 CI 流水线校验入库的真实巡检数据；不预置任何编造或模拟记录。",
+  "ci": {
+    "pipeline": "github-actions",
+    "ingestWorkflow": ".github/workflows/ingest-automation-run.yml",
+    "qualityGateWorkflow": ".github/workflows/ci-quality-gate.yml",
+    "deployWorkflow": ".github/workflows/deploy-pages.yml",
+    "lastIngestAt": null,
+    "lastRunId": null,
+    "lastJobUrl": null,
+    "lastCommitSha": null,
+    "totalIngestedRuns": 0
+  },
+  "runs": []
 }

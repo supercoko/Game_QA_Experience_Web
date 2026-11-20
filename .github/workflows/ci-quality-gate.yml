@@ -1,0 +1,47 @@
+name: CI Quality Gate & Schema Check
+
+on:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "automation/**"
+      - "web/**"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "automation/**"
+      - "web/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate automation-runs.json (Schema v2 & Real-Data-Only Policy)
+        run: python3 automation/scripts/ci_ingest.py validate --store web/data/automation-runs.json
+
+      - name: Run qa-observer unit test suite
+        env:
+          PYTHONPATH: automation/src
+        run: python3 -m unittest discover -s automation/tests -v
+
+      - name: Check JSON files syntax under web/data
+        run: |
+          python3 -c '
+          import json, pathlib
+          for p in pathlib.Path("web/data").glob("*.json"):
+              json.loads(p.read_text(encoding="utf-8"))
+              print(f"OK: {p}")
+          '

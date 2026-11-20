@@ -1,0 +1,18 @@
+# Python / uv virtualenvs & caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+automation/.venv/
+automation/build/
+automation/dist/
+automation/*.egg-info/
+automation/src/*.egg-info/
+
+# Local runtime artifacts, screenshots & third-party binaries
+automation/reports/runs/
+automation/tools/*.exe
+automation/tools/*.dll
+
+# Keep inbox directory tracked, ignore local temporary files
+automation/reports/inbox/*.tmp
