@@ -82,83 +82,84 @@ window.DATA_QA = [
   },
   {
     id: "track-platform",
-    title: "专题二：内部质量平台、FlowGraph 静态检查与 AI 辅助重构",
-    tag: "开源框架整合 · 提交卡点 · XML->JSON · Python规则 · AI重构",
-    resumeRef: "整合 Checklist/自动化/Diff/反馈；提交工具单据校验；FlowGraph 静态检查；AI辅助重构接入",
+    title: "专题二：Vue3+TS+Flask+MongoDB 质量平台、FlowGraph 静态检查与 AI 重构",
+    tag: "Vue3+TS · Flask · MongoDB · 提交卡点 · XML->JSON · AI重构",
+    resumeRef: "Vue3+TS+Python+Flask+MongoDB 搭建质量平台；提交单据卡点；FlowGraph 静态检查；AI重构接入",
     layers: [
       {
         layer: "L1",
-        q: "你做的内部质量工具是基于开源框架整合的，整合了哪些模块？为什么选择二次开发而不是从零自研？",
-        intent: "考察技术选型务实度与对团队研发效能的成本意识。",
+        q: "你用 Vue 3 + TypeScript + Python + Flask + MongoDB 搭建了内部质量平台，整体架构是怎么分层的？为什么选择这套技术栈？",
+        intent: "考察全栈平台的真实工程落地度与技术选型合理性（米哈游因缘精灵测开/鹰角工具向必问）。",
         answer: `<ul>
-          <li><strong>整合模块</strong>：把原本散落在飞书文档、Jenkins 邮件、本地脚本里的 4 块数据统一收口——版本 Checklist、自动化执行结果、DataTable 配置 Diff、以及内部问题反馈，同时配套开发了提交工具的单据关联、状态/提交人检查与任务提醒。</li>
-          <li><strong>选型考量（投入产出比）</strong>：QA 工具团队人力有限，权限管理、账号体系、基础 CRUD 和报表框架属于通用底层，从零自研周期长且维护成本高；基于成熟开源框架二次开发可以把 80% 精力集中在游戏业务强相关的核心能力（DataTable Diff、FlowGraph 检查、P4 单据卡点）上，快速上线拿到业务反馈。</li>
+          <li><strong>前后端分层架构</strong>：
+            <br/>• <strong>前端（Vue 3 + TypeScript）</strong>：基于开源后台管理模板二次开发，利用 TS 强类型约束配置 Diff、自动化报告、Checklist 和问题反馈的复杂数据结构，封装可复用的 JSON Diff 树形对比组件、结果筛选表格与反馈表单；
+            <br/>• <strong>后端（Python + Flask）</strong>：提供 RESTful API 与 Jenkins/P4 Webhook 接收层，与团队现有的 Python 自动化/静态检查脚本天然同语言，零跨语言调用成本；
+            <br/>• <strong>存储（MongoDB）</strong>：文档型数据库天然契合游戏配置表 JSON 快照（每张 DataTable 字段结构不固定、频繁加减列）、FlowGraph 图结构和非结构化自动化日志，省去了关系型数据库频繁改表 Migration 的痛苦。</li>
+          <li><strong>为什么基于开源框架而非从零造轮子</strong>：把权限/布局/路由等基础底座复用成熟开源方案，将 80% 精力聚焦在游戏业务核心（DataTable Diff、FlowGraph 规则、单据卡点），最快速度上线让团队用起来。</li>
         </ul>`,
-        pitfall: "不要因为“基于开源框架”而心虚，大厂极其认可“不重复造轮子、以业务交付速度为核心”的务实选型。"
+        pitfall: "精准讲出“为什么用 MongoDB 存 Schema 易变的 DataTable 快照”和“为什么用 Python/Flask 对齐自动化工具栈”，这是极具说服力的选型逻辑。"
       },
       {
         layer: "L2",
-        q: "讲一下 FlowGraph 静态检查的实现细节：XML 转 JSON 的过程中遇到什么结构难点？Python 检查规则是怎么组织的？",
-        intent: "考察数据结构抽象能力（图结构解析）与规则引擎可维护性。",
+        q: "在 Flask + MongoDB + Vue 3 实际开发中，有没有遇到性能瓶颈？比如单张 DataTable 几千行变更前端渲染卡顿、Flask 同步阻塞、或者 MongoDB 快照体积暴涨怎么处理？",
+        intent: "深挖全栈开发实战含金量，检验是否真的写过生产级前后端代码。",
         answer: `<ul>
-          <li><strong>为什么先转 JSON</strong>：FlowGraph 原始 XML 嵌套层级深、节点属性与连线（Edge/Pin）分散，直接在 XML DOM 上写规则既慢又难读。我将 XML 解析为标准化的有向图 JSON 结构：<code>nodes</code>（按 ID 索引，含节点类型、参数字典、输入输出端口）和 <code>edges</code>（源节点/端口 -> 目标节点/端口的邻接表）。</li>
-          <li><strong>典型静态检查规则</strong>：
-            <br/>1) <strong>图拓扑类</strong>：悬空孤立节点、必连输出端口未连线、非预期死循环/自环、不可达分支；
-            <br/>2) <strong>参数合法性类</strong>：引用的道具/NPC/任务 ID 不存在于配置表、必填参数为空、枚举越界；
-            <br/>3) <strong>状态收口类</strong>：进入特殊演出/禁用输入节点后，任意出口路径必须配对恢复节点（防止线上任务软锁！）。</li>
-          <li><strong>规则组织方式</strong>：采用插件化/注册表模式，每条规则是一个独立的校验函数（接收标准 Graph 对象，返回 <code>RuleViolation</code> 列表含节点 ID、严重级、修复建议），新增规则无需改动解析主干。</li>
+          <li><strong>1. 前端大 Diff 渲染优化（Vue 3 + TS）</strong>：大表一次性渲染几千个节点会导致浏览器卡死——采用<strong>服务端按页/按模块分段拉取 + 默认只展示 Changed 差异行（折叠未变更字段）+ 虚拟滚动（Virtual Scroll）</strong>，同时飞书推送仅发摘要卡片与跳转详情页链接。</li>
+          <li><strong>2. Flask 同步阻塞解耦</strong>：Flask 默认单线程/同步请求不适合直接跑几十秒的 DeepDiff 或 FlowGraph 全量解析；Webhook 接收 P4/Jenkins 回调后立即落库返回 <code>202 Accepted</code>，将耗时计算交给后台工作线程/异步队列（或 Jenkins 执行节点算完再推结果入库），并用 Gunicorn 多 Worker 部署提升 API 吞吐。</li>
+          <li><strong>3. MongoDB 存储与查询优化</strong>：
+            <br/>• 对高频查询条件建立复合索引，如 <code>(table_name, cl_number)</code> 和 <code>(project, created_at)</code>；
+            <br/>• 快照和 Diff 分表存储：列表页只查轻量级元信息与 Diff 摘要，不把几 MB 的完整原始 JSON 快照全查出来（Projection 裁剪字段）；
+            <br/>• 历史全量快照配置冷热分层或 TTL 清理策略，只永久保留核心版本/Diff 摘要，防止磁盘撑爆。</li>
         </ul>`,
-        pitfall: "一定要提到“图结构抽象（节点+连线邻接表）”和“规则与解析解耦”，这是区别脚本小子与测试开发的关键。"
+        pitfall: "哪怕当时内部并发不算极高，也要讲清“列表页裁剪大 JSON 字段、复合索引、前端折叠/虚拟滚动、耗时任务异步解耦”的工程方案。"
       },
       {
         layer: "L3",
-        q: "静态检查最怕“误报太多大家直接屏蔽”或者“规则落后于新节点”。你是怎么治理误报率和规则维护成本的？",
-        intent: "考察工具落地真实运营能力，而非写完就吃灰。",
+        q: "讲一下 FlowGraph 静态检查的实现细节：XML 转 JSON 的过程中遇到什么结构难点？Python 检查规则如何设计才能避免误报泛滥与维护成本过高？",
+        intent: "考察图结构抽象能力与规则引擎治理实战。",
         answer: `<ul>
-          <li><strong>分级告警策略</strong>：严格区分 <code>Error（阻断/强告警，如断链导致必现卡流程）</code> 和 <code>Warning（建议优化，如孤立废弃节点）</code>，绝不用低价值 Warning 去轰炸研发群。</li>
-          <li><strong>白名单与豁免机制</strong>：对合理特例（如刻意设计的测试图、临时调试节点）支持按图路径/节点 ID 配置豁免并记录豁免原因，防止同一误报反复出现。</li>
-          <li><strong>规则迭代闭环</strong>：每次测试或线上复盘发现由蓝图/FlowGraph 引起的典型 Bug（如漏配恢复输入、任务分支未闭合），优先评估“能否抽象成一条通用静态规则”，实现“修一个 Bug，灭一类 Bug”。同时在 Web 端统计每条规则的命中率与被研发标记误报率，定期清理低信噪比规则。</li>
+          <li><strong>XML -> 有向图 JSON 抽象</strong>：原始 XML 嵌套深、属性与连线分散，解析时抽象为标准图模型 <code>nodes</code>（按 ID 索引、含类型与参数字典）与 <code>edges</code>（源端口 -> 目标端口邻接表），让检查规则直接面向图拓扑编写。</li>
+          <li><strong>高价值检查规则类型</strong>：悬空孤立节点、必连输出断链、非预期死循环、引用的道具/任务 ID 在配置表中不存在、以及“进入禁输入/演出状态后出口缺少恢复节点”（直接防任务软锁）。</li>
+          <li><strong>误报治理与可维护性</strong>：采用规则插件注册机制（解析与规则解耦）；结果严格分 <code>Error</code>（强告警/阻断）与 <code>Warning</code>（折叠提示）；支持按图路径/节点 ID 配置带原因说明的白名单豁免，并在 Web 平台记录每条规则的命中率与误报反馈，定期淘汰低信噪比规则。</li>
         </ul>`,
-        pitfall: "千万别说“我们的规则没有误报”——任何静态检查都有误报，重点是展示分级、豁免和信噪比治理机制。"
+        pitfall: "重点体现“图结构建模 + 规则插件化 + 误报率度量治理”。"
       },
       {
         layer: "L4",
         q: "你们开发了提交工具的“单据关联、状态和提交人检查”，上线这种卡点功能时，程序或策划肯定会嫌麻烦抱怨影响效率，你怎么推动落地的？",
         intent: "考察跨团队沟通推动力与平衡质量与效率的拿捏能力。",
         answer: `<ul>
-          <li><strong>先痛点对齐，找共同利益</strong>：先用数据对齐痛点——没有单据关联时，出包回滚不知道哪些 CL 属于哪个需求，合分支经常漏单、误合未审核提交，最后加班排查的还是程序和策划自己。</li>
-          <li><strong>灰度推进而非一刀切</strong>：
-            <br/>1) <strong>观察期（仅提醒不阻断）</strong>：先跑 1~2 周，只做提交弹窗提示与每日合规汇总，收集哪些场景（如紧急热修、纯临时资源）不适合强绑单据；
-            <br/>2) <strong>差异化策略</strong>：开发分支宽松、主干/发布分支（Release Branch）严格强卡；提供“紧急通道/白名单标签”但要求事后自动生成补录提醒，既不耽误救火又不留黑盒提交；
-            <br/>3) <strong>极致降低填写成本</strong>：在提交工具中自动拉取当前提交人名下“进行中”的单据下拉联想，点一下就能关联，而不是让人手动去切网页抄单号。</li>
+          <li><strong>先痛点对齐，找共同利益</strong>：先用真实事故对齐痛点——没有单据关联时，出包回滚不知道哪些 CL 属于哪个需求，合分支经常漏单、误合未审核提交，最后加班排查的还是程序和策划自己。</li>
+          <li><strong>灰度推进 + 降低摩擦</strong>：
+            <br/>1) <strong>观察期（仅提醒不阻断）</strong>：先跑 1~2 周收集例外场景（紧急热修、纯临时草稿资源）；
+            <br/>2) <strong>分分支差异化策略</strong>：开发分支宽松、发布/主干分支强卡；预留紧急通道标签但自动触发事后补录提醒；
+            <br/>3) <strong>工具体验降摩擦</strong>：在提交界面直接通过当前登录提交人拉取名下“进行中”的单据下拉联想，一键勾选，而非让人切网页抄单号。</li>
         </ul>`,
-        pitfall: "高分密码在于“降低研发操作摩擦 + 分分支灰度推进 + 留应急口子”，切忌说“让领导发邮件强制执行”。"
+        pitfall: "高分密码在于“降低研发操作摩擦 + 分分支灰度推进 + 留应急口子”，切忌说“让领导强制推行”。"
       },
       {
         layer: "L5",
-        q: "你提到“后期使用 AI 辅助代码重构与现有平台接入”，具体怎么用 AI 做的？你怎么验证 AI 生成/重构的代码不会引入隐藏 Bug？",
+        q: "你提到“后期使用 AI 辅助代码重构与现有平台接入”，在 Vue3+TS / Flask 项目中具体怎么用 AI 重构的？怎么验证 AI 改动没引入隐藏 Bug？",
         intent: "考察 AI 工程化实战真实度，区分“盲目复制粘贴”与“严谨工程驾驭”。",
         answer: `<ul>
-          <li><strong>具体应用场景</strong>：老工具脚本前期迭代快、耦合度高（解析、规则、入库混在一起），在接入公司现有平台时接口规范和模块边界需要大改。我先自己梳理出目标架构与接口契约，再用 AI 辅助做三件事：拆解长函数与清理重复样板代码、生成对接新平台 API 的适配层与数据结构转换、补充单元测试和边界用例。</li>
+          <li><strong>具体落地场景</strong>：前期自建平台迭代快、部分 Flask 路由与解析脚本耦合度高，对接公司统一平台时需要按新规范拆分接口、对齐鉴权与前端 TS 类型定义。我先手工定好目标模块边界与 API Schema，再用 AI 辅助拆解长函数、补全 TS 类型声明、生成新平台接口适配层以及编写 pytest 单元测试。</li>
           <li><strong>质量与风险兜底（人机分工）</strong>：
-            <br/>1) <strong>黄金数据集回归对比（Golden Test）</strong>：重构前先拉取一批历史真实的 FlowGraph XML / DataTable 快照作为基线，跑通重构前后的输出做全量 Diff，确保业务语义 100% 等价；
-            <br/>2) <strong>小步提交与人工 Code Review</strong>：绝不让 AI 一次性改跨十几个文件的黑盒逻辑，按模块拆小任务，重点人工核对异常处理、空值边界、并发锁和外部 API 权限凭证逻辑；
-            <br/>3) <strong>灰度双跑</strong>：接入新平台初期新旧脚本并行跑一段时间对比推送结果，确认零漏报后再下线旧脚本。</li>
+            <br/>1) <strong>黄金基线回归（Golden Test）</strong>：抽取历史真实 DataTable 快照与 FlowGraph XML 跑重构前后的全量输出对比，保证核心业务语义 100% 等价；
+            <br/>2) <strong>小步提交 + 人工重点审高危点</strong>：人工逐行 Review 鉴权 Token、数据库写入事务、空值边界与异常捕获，拒绝 AI 一次性大范围黑盒改写；
+            <br/>3) <strong>灰度双跑验收</strong>：对接现有平台初期新旧通知通道并行跑数天比对结果，确认零漏报零错推后再切流下线旧入口。</li>
         </ul>`,
-        pitfall: "核心要体现“架构决策和等价性验收在我手里，AI 是放大执行效率的杠杆”。"
+        pitfall: "核心要体现“架构契约与等价性验证在我手里，AI 是工程提效杠杆”。"
       },
       {
         layer: "L6",
-        q: "如果团队让你把这套质量平台做成服务多项目的通用中台，你觉得当前架构最大的瓶颈会在哪里？怎么解耦？",
-        intent: "考察平台抽象能力与多项目复用视野（鹰角测开/工具向高频终极题）。",
+        q: "如果团队让你把这套 Vue3+Flask+MongoDB 平台演进成支持多游戏项目、甚至结合 AI Agent 的统一效能中台，你会怎么改造后端与架构？",
+        intent: "高阶测开/平台架构终极题（直击鹰角工具/Agent向与米哈游因缘精灵测开）。",
         answer: `<ul>
-          <li><strong>最大瓶颈在于“业务耦合”</strong>：当前 DataTable 导出格式、FlowGraph Schema、飞书多维表字段和单据系统字段都是绑定单一 UE 项目的。</li>
-          <li><strong>三层解耦架构设计</strong>：
-            <br/>1) <strong>接入适配器层（Adapter）</strong>：抽象版本库（P4/Git/SVN）、构建器（Jenkins/GitLab CI）、通知渠道（飞书/企微/钉钉）与资产解析器（UE DataTable / Unity ScriptableObject / Excel），不同项目只实现轻量化插件；
-            <br/>2) <strong>统一核心引擎层（Core）</strong>：标准化快照模型（Project + Branch + Revision + AssetPath + NormalizedJSON）、通用结构化 Diff 引擎与可配置规则引擎；
-            <br/>3) <strong>多租户数据与度量层</strong>：按项目隔离数据权限，同时沉淀跨项目质量大盘（配置误改率、静态规则拦截数、回归发现 Bug 占比），让工具价值从“单点提效”升级为“团队质量决策依据”。</li>
+          <li><strong>1. 多项目解耦（三层抽象）</strong>：抽象资产/仓库适配器层（P4/Git/SVN、UE DataTable/Unity SO/Excel）、统一标准化快照与 Diff 核心引擎、以及带项目隔离（Multi-tenant + RBAC）的度量与权限层。</li>
+          <li><strong>2. 工程稳定性升级</strong>：引入 Redis + Celery/RQ 将解析/Diff/通知彻底队列化并支持失败自动退避重试；前后端统一 OpenAPI/Swagger 契约，接入结构化日志与 Prometheus 监控；若遇到超高并发采集场景，高吞吐网关/日志接收层可平滑演进至 FastAPI 异步或 Golang。</li>
+          <li><strong>3. 接入 AI Agent 能力闭环</strong>：在平台已有数据底座（需求单据 + 配置 Diff + 自动化结果 + Bug 反馈）之上构建 QA Agent——提交配置变更时自动结合历史缺陷库（RAG）输出“风险等级 + 推荐复测边界用例”，并联动自动化触发回归，把平台从“被动展示看板”升级为“主动质量决策引擎”。</li>
         </ul>`,
-        pitfall: "不需要背诵复杂微服务名词，围绕“适配器解耦、标准数据模型、跨项目度量”讲清楚即可拿高分。"
+        pitfall: "清晰回答出“异步队列解耦 + 多项目适配器 + 基于已有数据底座叠加 RAG/Agent”，直接对标高级测开水准。"
       }
     ]
   },

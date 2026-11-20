@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>游戏 QA / 测开面试全链路作战台 · 岗位匹配 × 6层追问 × 4,134条线上缺陷分析</title>
+  <title>游戏 QA / 测开面试全链路作战台 · 全栈工具链 × 学习卡片 × 非侵入自动化看板</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -14,7 +14,7 @@
           <div class="brand-badge">QA</div>
           <div>游戏 QA 面试作战台</div>
         </div>
-        <div class="brand-sub">UE 工具链 × 系统白盒 × 4,134 线上缺陷</div>
+        <div class="brand-sub">Vue3/Flask全栈 × UE工具链 × 4,134 缺陷</div>
       </div>
 
       <ul class="nav-list">
@@ -54,6 +54,24 @@
             <span class="nav-badge">8+14</span>
           </button>
         </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="study">
+            <span>7. 欠缺知识学习卡片</span>
+            <span class="nav-badge">24 卡</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="autohub">
+            <span>8. 非侵入自动化 & 看板</span>
+            <span class="nav-badge">Live</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="feedback">
+            <span>9. Bug 反馈 & 部署方案</span>
+            <span class="nav-badge">Pages</span>
+          </button>
+        </li>
       </ul>
 
       <div class="sidebar-footer">
@@ -64,6 +82,15 @@
           </div>
           <div class="progress-track">
             <div class="progress-fill" id="mastery-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="mastery-box">
+          <div class="mastery-header">
+            <span>知识卡片巩固</span>
+            <span id="fc-progress-text">0 / 24 (0%)</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="fc-progress-bar" style="width:0%"></div>
           </div>
         </div>
         <div class="sidebar-actions">
@@ -81,7 +108,7 @@
         </div>
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input type="search" id="global-search" class="search-input" placeholder="搜索岗位、6层追问、线上Bug、用例..." />
+          <input type="search" id="global-search" class="search-input" placeholder="搜索岗位、追问、学习卡片、自动化、Bug..." />
         </div>
       </header>
 
@@ -94,6 +121,9 @@
         <section id="view-qa" class="section-view"></section>
         <section id="view-online" class="section-view"></section>
         <section id="view-methods" class="section-view"></section>
+        <section id="view-study" class="section-view"></section>
+        <section id="view-autohub" class="section-view"></section>
+        <section id="view-feedback" class="section-view"></section>
       </main>
     </div>
   </div>
@@ -102,6 +132,8 @@
   <script src="data-qa.js"></script>
   <script src="data-online.js"></script>
   <script src="data-methods.js"></script>
+  <script src="data-study.js"></script>
+  <script src="data-hub.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
