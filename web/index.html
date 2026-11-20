@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>游戏 QA / 测开面试全链路作战台 · 岗位匹配 × 6层追问 × 4,134条线上缺陷分析</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-badge">QA</div>
+          <div>游戏 QA 面试作战台</div>
+        </div>
+        <div class="brand-sub">UE 工具链 × 系统白盒 × 4,134 线上缺陷</div>
+      </div>
+
+      <ul class="nav-list">
+        <li class="nav-item">
+          <button class="nav-btn active" data-sec="overview">
+            <span>1. 总览仪表盘</span>
+            <span class="nav-badge">画像</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="jobs">
+            <span>2. 最适合投递岗位</span>
+            <span class="nav-badge">27 JD</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="intro">
+            <span>3. 个人介绍话术库</span>
+            <span class="nav-badge">3 套</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="qa">
+            <span>4. 经历 6 层深度追问</span>
+            <span class="nav-badge">30 题</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="online">
+            <span>5. 线上逃逸 Bug 补齐</span>
+            <span class="nav-badge">4,134</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-sec="methods">
+            <span>6. 测试方法与案例库</span>
+            <span class="nav-badge">8+14</span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="mastery-box">
+          <div class="mastery-header">
+            <span>面试题掌握进度</span>
+            <span id="mastery-text">0 / 36 (0%)</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="mastery-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="sidebar-actions">
+          <button class="btn btn-sm" id="theme-toggle" style="flex:1;">☾ 深色</button>
+          <button class="btn btn-sm" id="print-btn" style="flex:1;">打印 / PDF</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" id="mobile-menu-btn">☰ 菜单</button>
+          <h1 class="page-title" id="page-title">总览仪表盘 · 个人画像与数据洞察</h1>
+        </div>
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="global-search" class="search-input" placeholder="搜索岗位、6层追问、线上Bug、用例..." />
+        </div>
+      </header>
+
+      <main class="content-area">
+        <div id="search-results" style="display:none;"></div>
+
+        <section id="view-overview" class="section-view active"></section>
+        <section id="view-jobs" class="section-view"></section>
+        <section id="view-intro" class="section-view"></section>
+        <section id="view-qa" class="section-view"></section>
+        <section id="view-online" class="section-view"></section>
+        <section id="view-methods" class="section-view"></section>
+      </main>
+    </div>
+  </div>
+
+  <script src="data-jobs.js"></script>
+  <script src="data-qa.js"></script>
+  <script src="data-online.js"></script>
+  <script src="data-methods.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
