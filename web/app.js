@@ -63,7 +63,7 @@
     online: "线上逃逸 Bug 补齐 · 4,134 条公告提炼与必考题",
     methods: "游戏测试方法论 & 实战用例库",
     roadmap: "真实面评深度诊断 & 8 周突围逆袭路线（系统表达 + 战斗/任务补救）",
-    study: "欠缺知识诊断 & 交互式翻转学习卡片（32 张）",
+    study: "欠缺知识诊断 & 交互式翻转学习卡片（40 张 · 含通用测试方法与案例）",
     autohub: "四款游戏非侵入自动化方案（原神已实现）& CI 真实数据看板",
     feedback: "Bug 反馈缺陷看板 & GitHub Pages 零后端部署方案"
   };
@@ -335,8 +335,8 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-label">面试追问 + 学习卡片</div>
-          <div class="kpi-value" style="color:var(--accent)">36 题 + 32 卡</div>
-          <div class="kpi-sub">新增 8 张战斗/任务/商业化/表达破局卡片</div>
+          <div class="kpi-value" style="color:var(--accent)">36 题 + 40 卡</div>
+          <div class="kpi-sub">含通用测试方法+经典案例、战斗/任务/商业化补齐</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">非侵入自动化 + CI 入库</div>
@@ -825,7 +825,7 @@
 
     const html = `
       <div class="callout">
-        <strong>针对性短板补齐：</strong>已新增<strong>第 7 板块「战斗/任务/商业化核心业务补齐」</strong>（8 张高频破局卡片），共 <strong>32 张间隔记忆翻转学习卡片</strong>！点击卡片翻转看精解与面试金句，自评结果自动保存在本地浏览器。
+        <strong>针对性短板补齐：</strong>已新增<strong>第 8 板块「通用测试方法与经典案例」</strong>（等价类/边界值、状态迁移、判定表、正交法、场景法、探索性测试、生命周期清理、灰盒与测试金字塔），共 <strong>40 张间隔记忆翻转学习卡片</strong>！点击卡片翻转看精解与面试金句，自评结果自动保存在本地浏览器。
       </div>
 
       <h3 style="margin:0 0 12px;font-size:16.5px;">一、六大欠缺知识诊断地图</h3>
