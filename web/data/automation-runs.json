@@ -1,6 +1,6 @@
 {
   "schemaVersion": "2.0",
-  "updatedAt": null,
+  "updatedAt": "2026-11-20T11:32:31Z",
   "repository": "supercoko/Game_QA_Experience_Web",
   "policy": "real-data-only",
   "note": "仅收录由非侵入自动化工具实际执行或 CI 流水线校验入库的真实巡检数据；不预置任何编造或模拟记录。",
@@ -9,11 +9,176 @@
     "ingestWorkflow": ".github/workflows/ingest-automation-run.yml",
     "qualityGateWorkflow": ".github/workflows/ci-quality-gate.yml",
     "deployWorkflow": ".github/workflows/deploy-pages.yml",
-    "lastIngestAt": null,
-    "lastRunId": null,
+    "lastIngestAt": "2026-11-20T11:32:31Z",
+    "lastRunId": "RUN-YS-20261120-193029-5a82",
     "lastJobUrl": null,
     "lastCommitSha": null,
-    "totalIngestedRuns": 0
+    "totalIngestedRuns": 1
   },
-  "runs": []
+  "runs": [
+    {
+      "id": "RUN-YS-20261120-193029-5a82",
+      "schemaVersion": "2.0",
+      "dataOrigin": "real_capture",
+      "timestamp": "2026-11-20T19:32:31+08:00",
+      "date": "2026-11-20",
+      "game": "原神",
+      "gameKey": "genshin",
+      "version": "unknown",
+      "suite": "genshin-non-intrusive-observe",
+      "mode": "observe",
+      "status": "FAIL",
+      "passRate": 66.7,
+      "totalCases": 6,
+      "passedCases": 4,
+      "warnedCases": 1,
+      "failedCases": 1,
+      "skippedCases": 0,
+      "durationSec": 120.71,
+      "metrics": {
+        "coldStartSec": null,
+        "avgFps": 96.97,
+        "low1Fps": 13.81,
+        "low01Fps": 4.28,
+        "p50FrameTimeMs": 8.67,
+        "p95FrameTimeMs": 18.19,
+        "p99FrameTimeMs": 33.55,
+        "maxFrameTimeMs": 516.69,
+        "hitchCount50ms": 52,
+        "hitchCount100ms": 17,
+        "memMbAvg": 3433.69,
+        "memMbPeak": 3502.41,
+        "memLeakSlopeMbPerMin": 56.88,
+        "cpuPctAvg": 204.34,
+        "framesAnalyzed": 97,
+        "teleportLoadsSec": []
+      },
+      "environment": {
+        "os": "Windows-11-10.0.26200-SP0",
+        "resolution": "2560x1440",
+        "processName": "YuanShen.exe",
+        "captureBackend": "dxcam(out1)",
+        "presentmonAttached": true,
+        "ocrEngine": "rapidocr_onnxruntime",
+        "vlmEnabled": false,
+        "isAdmin": true,
+        "host": "COKO"
+      },
+      "ci": {
+        "provider": "local-cli",
+        "triggeredBy": "manual",
+        "workflow": null,
+        "jobRunId": null,
+        "jobRunNumber": null,
+        "jobUrl": null,
+        "commitSha": null,
+        "branch": null,
+        "runner": "COKO",
+        "ingestedAt": null
+      },
+      "cases": [
+        {
+          "caseId": "YS-PROC-01",
+          "name": "进程存活、冷启动与 CrashDump 监控",
+          "status": "PASS",
+          "durationSec": 120.71,
+          "detail": "进程 YuanShen.exe (PID=75548) 全程稳定存活，新增 CrashDump 0 个",
+          "metrics": {}
+        },
+        {
+          "caseId": "YS-PERF-01",
+          "name": "外部性能基线观测（PresentMon 帧时间 + 进程内存水位）",
+          "status": "FAIL",
+          "durationSec": 120.71,
+          "detail": "PresentMon 采样 11655 帧：Avg 96.97 FPS, 1% Low 13.81 FPS, P99 33.55ms, >50ms毛刺 52 次, >100ms毛刺 17 次；内存均值 3433.69 MB / 峰值 3502.41 MB；斜率 +56.9 MB/min",
+          "metrics": {}
+        },
+        {
+          "caseId": "YS-VIS-01",
+          "name": "画面渲染异常实时巡检（黑屏/纯色/冻结/紫红缺贴图）",
+          "status": "PASS",
+          "durationSec": 117.77,
+          "detail": "共分析 97 帧，检出 0 条视觉异常",
+          "metrics": {
+            "framesAnalyzed": 97
+          }
+        },
+        {
+          "caseId": "YS-TELEPORT-01",
+          "name": "大世界传送/白屏加载耗时观测",
+          "status": "PASS",
+          "durationSec": 117.77,
+          "detail": "本轮未触发白屏传送切换，加载链路无卡死",
+          "metrics": {
+            "teleportLoadsSec": []
+          }
+        },
+        {
+          "caseId": "YS-OCR-01",
+          "name": "UI 文本溢出 / 未翻译 Key / 重连弹窗 OCR 巡检",
+          "status": "WARN",
+          "durationSec": 117.77,
+          "detail": "RapidOCR 共抽检 28 帧，检出 1 条文本/弹窗异常",
+          "metrics": {
+            "ocrChecks": 28
+          }
+        },
+        {
+          "caseId": "YS-INPUT-01",
+          "name": "键鼠 ↔ 手柄输入模式视觉验收",
+          "status": "PASS",
+          "durationSec": 117.77,
+          "detail": "识别到输入模式 ['gamepad']，检测到 0 次热切换",
+          "metrics": {
+            "observedModes": [
+              "gamepad"
+            ],
+            "switches": 0
+          }
+        }
+      ],
+      "findings": [
+        {
+          "caseId": "YS-OCR-01",
+          "severity": "P2",
+          "rule": "L10N_TEXT_OVERFLOW",
+          "msg": "OCR 检测到 1 处文本贴边/疑似裁切：'UID:104688390' @ (2240, 1401, 2481, 1437)",
+          "timestamp": "2026-11-20T19:32:30+08:00",
+          "evidencePath": null,
+          "details": {}
+        },
+        {
+          "caseId": "YS-PERF-01",
+          "severity": "P1",
+          "rule": "LOW_1PCT_FPS_CRITICAL",
+          "msg": "1% Low FPS 跌至 13.81（严重低于基线 30.0 FPS）",
+          "timestamp": "2026-11-20T19:32:31+08:00",
+          "evidencePath": null,
+          "details": {}
+        },
+        {
+          "caseId": "YS-PERF-01",
+          "severity": "P2",
+          "rule": "FRAMETIME_SPIKE",
+          "msg": "检测到 17 次 >100ms 单帧毛刺（最大帧时间 516.69ms）",
+          "timestamp": "2026-11-20T19:32:31+08:00",
+          "evidencePath": null,
+          "details": {}
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "presentmon_csv",
+          "path": "B:\\CODE\\BUG分析_Neon\\automation\\reports\\runs\\RUN-YS-20261120-193029-5a82\\presentmon.csv",
+          "label": "PresentMon Raw CSV"
+        },
+        {
+          "kind": "telemetry",
+          "path": "B:\\CODE\\BUG分析_Neon\\automation\\reports\\runs\\RUN-YS-20261120-193029-5a82\\telemetry.json",
+          "label": "Frame & resource telemetry"
+        }
+      ],
+      "notes": "100% 零输入外部被动观测模式（Observe Mode），所有指标均为真实采样。"
+    }
+  ]
 }

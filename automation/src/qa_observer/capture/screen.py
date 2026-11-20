@@ -1,4 +1,4 @@
-"""Non-invasive screen capture backends (DXGI dxcam -> MSS -> PIL) and offline replay source."""
+"""Non-invasive screen capture backends (multi-monitor DXGI dxcam -> MSS -> PIL) and offline replay source."""
 
 from __future__ import annotations
 
@@ -18,17 +18,125 @@ class CapturedFrame:
     source_label: str = ""
 
 
+@dataclass
+class MonitorRect:
+    device_idx: int
+    output_idx: int
+    left: int
+    top: int
+    right: int
+    bottom: int
+    name: str = ""
+
+    @property
+    def width(self) -> int:
+        return self.right - self.left
+
+    @property
+    def height(self) -> int:
+        return self.bottom - self.top
+
+
+def map_region_to_monitor(
+    left: int,
+    top: int,
+    width: int,
+    height: int,
+    monitors: list[MonitorRect],
+) -> tuple[MonitorRect, tuple[int, int, int, int]] | None:
+    """Map a virtual-desktop window rect to the monitor containing its center and convert to local coords.
+
+    Returns `(monitor, (local_x1, local_y1, local_x2, local_y2))` when the window lies substantially
+    inside a single monitor, or `None` if no monitor matches (caller should fall back to MSS).
+    """
+    if width <= 0 or height <= 0 or not monitors:
+        return None
+    right = left + width
+    bottom = top + height
+    cx = left + width // 2
+    cy = top + height // 2
+
+    target: MonitorRect | None = None
+    for mon in monitors:
+        if mon.left <= cx < mon.right and mon.top <= cy < mon.bottom:
+            target = mon
+            break
+    if target is None:
+        return None
+
+    # Compute intersection with target monitor in monitor-local coordinates
+    ix1 = max(left, target.left)
+    iy1 = max(top, target.top)
+    ix2 = min(right, target.right)
+    iy2 = min(bottom, target.bottom)
+    inter_w = ix2 - ix1
+    inter_h = iy2 - iy1
+    if inter_w < max(16, int(width * 0.5)) or inter_h < max(16, int(height * 0.5)):
+        # Window mostly spans across multiple monitors; let MSS handle virtual desktop capture
+        return None
+
+    local_region = (
+        ix1 - target.left,
+        iy1 - target.top,
+        ix2 - target.left,
+        iy2 - target.top,
+    )
+    return (target, local_region)
+
+
+def _discover_dxcam_monitors() -> list[MonitorRect]:
+    monitors: list[MonitorRect] = []
+    try:
+        import dxcam  # type: ignore
+
+        for d_idx, outs in enumerate(dxcam.__factory.outputs):
+            for o_idx, out in enumerate(outs):
+                coords = out.desc.DesktopCoordinates
+                monitors.append(
+                    MonitorRect(
+                        device_idx=d_idx,
+                        output_idx=o_idx,
+                        left=int(coords.left),
+                        top=int(coords.top),
+                        right=int(coords.right),
+                        bottom=int(coords.bottom),
+                        name=str(getattr(out, "devicename", "")),
+                    )
+                )
+    except Exception:
+        pass
+    return monitors
+
+
+def _create_mss_ctx() -> Any | None:
+    try:
+        import mss  # type: ignore
+
+        return mss.MSS() if hasattr(mss, "MSS") else mss.mss()
+    except Exception:
+        return None
+
+
 class FrameCapturer:
-    """Captures the game window's client rectangle purely from desktop compositor output."""
+    """Captures the game window's client rectangle purely from desktop compositor output.
+
+    Supports multi-monitor Windows setups (including negative left/top coordinates on
+    secondary monitors) by mapping each window to its DXGI output or falling back seamlessly to MSS.
+    """
 
     def __init__(self, preferred_backend: str = "auto") -> None:
         self.preferred_backend = preferred_backend.lower()
         self.backend_name: str = "unavailable"
-        self._dxcam_camera: Any = None
+        self._dxcam_available: bool = False
+        self._dxcam_monitors: list[MonitorRect] = []
+        self._dxcam_cameras: dict[tuple[int, int], Any] = {}
+        self._dxcam_failed_outputs: set[tuple[int, int]] = set()
         self._mss_ctx: Any = None
+        self._pil_available: bool = False
         self._init_backend()
 
     def _init_backend(self) -> None:
+        # Always probe fallback backends cleanly when preferred_backend == "auto"
         order = (
             ["dxcam", "mss", "pil"]
             if self.preferred_backend == "auto"
@@ -36,47 +144,87 @@ class FrameCapturer:
         )
         for name in order:
             if name == "dxcam":
-                try:
-                    import dxcam  # type: ignore
-
-                    cam = dxcam.create(output_color="BGR")
-                    if cam is not None:
-                        self._dxcam_camera = cam
+                mons = _discover_dxcam_monitors()
+                if mons:
+                    self._dxcam_available = True
+                    self._dxcam_monitors = mons
+                    if self.backend_name == "unavailable":
                         self.backend_name = "dxcam"
-                        return
-                except Exception:
-                    continue
             elif name == "mss":
-                try:
-                    import mss  # type: ignore
-
-                    self._mss_ctx = mss.mss()
-                    self.backend_name = "mss"
-                    return
-                except Exception:
-                    continue
+                ctx = _create_mss_ctx()
+                if ctx is not None:
+                    self._mss_ctx = ctx
+                    if self.backend_name == "unavailable":
+                        self.backend_name = "mss"
             elif name == "pil":
                 try:
                     from PIL import ImageGrab  # type: ignore  # noqa: F401
 
-                    self.backend_name = "pil"
-                    return
+                    self._pil_available = True
+                    if self.backend_name == "unavailable":
+                        self.backend_name = "pil"
                 except Exception:
                     continue
 
-    def grab_region(self, left: int, top: int, width: int, height: int, rel_ts: float = 0.0) -> CapturedFrame | None:
-        if width <= 0 or height <= 0:
+    def _get_dxcam_camera(self, device_idx: int, output_idx: int) -> Any | None:
+        key = (device_idx, output_idx)
+        if key in self._dxcam_failed_outputs:
+            return None
+        if key in self._dxcam_cameras:
+            return self._dxcam_cameras[key]
+        try:
+            import dxcam  # type: ignore
+
+            cam = dxcam.create(device_idx=device_idx, output_idx=output_idx, output_color="BGR")
+            if cam is None:
+                self._dxcam_failed_outputs.add(key)
+                return None
+            self._dxcam_cameras[key] = cam
+            return cam
+        except Exception:
+            self._dxcam_failed_outputs.add(key)
             return None
 
-        if self.backend_name == "dxcam" and self._dxcam_camera is not None:
-            region = (max(0, left), max(0, top), max(1, left + width), max(1, top + height))
-            frame = self._dxcam_camera.grab(region=region)
-            if frame is None:
-                return None
-            h, w = frame.shape[:2]
-            return CapturedFrame(timestamp=rel_ts, width=w, height=h, bgr=frame, backend="dxcam")
+    def _grab_dxcam(self, left: int, top: int, width: int, height: int, rel_ts: float) -> CapturedFrame | None:
+        if not self._dxcam_available:
+            return None
+        mapped = map_region_to_monitor(left, top, width, height, self._dxcam_monitors)
+        if mapped is None:
+            return None
+        mon, local_region = mapped
+        cam = self._get_dxcam_camera(mon.device_idx, mon.output_idx)
+        if cam is None:
+            return None
 
-        if self.backend_name == "mss" and self._mss_ctx is not None:
+        frame = None
+        for attempt in range(3):
+            try:
+                frame = cam.grab(region=local_region)
+            except Exception:
+                self._dxcam_failed_outputs.add((mon.device_idx, mon.output_idx))
+                return None
+            if frame is not None:
+                break
+            if attempt < 2:
+                time.sleep(0.05)
+
+        if frame is None:
+            return None
+        h, w = frame.shape[:2]
+        if w < 16 or h < 16:
+            return None
+        return CapturedFrame(
+            timestamp=rel_ts,
+            width=w,
+            height=h,
+            bgr=frame,
+            backend=f"dxcam(out{mon.output_idx})",
+        )
+
+    def _grab_mss(self, left: int, top: int, width: int, height: int, rel_ts: float) -> CapturedFrame | None:
+        if self._mss_ctx is None:
+            return None
+        try:
             import numpy as np  # type: ignore
 
             monitor = {"left": int(left), "top": int(top), "width": int(width), "height": int(height)}
@@ -84,28 +232,53 @@ class FrameCapturer:
             arr = np.array(raw, dtype=np.uint8)
             bgr = arr[:, :, :3].copy()
             h, w = bgr.shape[:2]
+            if w < 16 or h < 16:
+                return None
             return CapturedFrame(timestamp=rel_ts, width=w, height=h, bgr=bgr, backend="mss")
+        except Exception:
+            return None
 
-        if self.backend_name == "pil":
+    def _grab_pil(self, left: int, top: int, width: int, height: int, rel_ts: float) -> CapturedFrame | None:
+        if not self._pil_available:
+            return None
+        try:
             import numpy as np  # type: ignore
             from PIL import ImageGrab  # type: ignore
 
             bbox = (int(left), int(top), int(left + width), int(top + height))
-            img = ImageGrab.grab(bbox=bbox)
+            img = ImageGrab.grab(bbox=bbox, all_screens=True)
             rgb = np.array(img, dtype=np.uint8)
             bgr = rgb[:, :, ::-1].copy()
             h, w = bgr.shape[:2]
+            if w < 16 or h < 16:
+                return None
             return CapturedFrame(timestamp=rel_ts, width=w, height=h, bgr=bgr, backend="pil")
+        except Exception:
+            return None
 
+    def grab_region(self, left: int, top: int, width: int, height: int, rel_ts: float = 0.0) -> CapturedFrame | None:
+        if width <= 0 or height <= 0:
+            return None
+
+        if self.preferred_backend in {"auto", "dxcam"}:
+            f = self._grab_dxcam(left, top, width, height, rel_ts)
+            if f is not None:
+                return f
+        if self.preferred_backend in {"auto", "mss"} or (self.preferred_backend == "dxcam" and self._mss_ctx is not None):
+            f = self._grab_mss(left, top, width, height, rel_ts)
+            if f is not None:
+                return f
+        if self.preferred_backend in {"auto", "pil"}:
+            return self._grab_pil(left, top, width, height, rel_ts)
         return None
 
     def close(self) -> None:
-        if self._dxcam_camera is not None:
+        for cam in self._dxcam_cameras.values():
             try:
-                self._dxcam_camera.release()
+                cam.release()
             except Exception:
                 pass
-            self._dxcam_camera = None
+        self._dxcam_cameras.clear()
         if self._mss_ctx is not None:
             try:
                 self._mss_ctx.close()

@@ -2,9 +2,42 @@ import importlib.util
 import unittest
 
 from qa_observer.analyzers.visual import analyze_frame_visual
+from qa_observer.capture.screen import MonitorRect, map_region_to_monitor
 from qa_observer.config import default_game_config_path, load_config
 
 HAS_NUMPY = importlib.util.find_spec("numpy") is not None
+
+
+class TestMultiMonitorMapping(unittest.TestCase):
+    def setUp(self) -> None:
+        self.monitors = [
+            MonitorRect(device_idx=0, output_idx=0, left=0, top=0, right=2560, bottom=1440, name="DISPLAY1"),
+            MonitorRect(device_idx=0, output_idx=1, left=-2560, top=0, right=0, bottom=1440, name="DISPLAY2"),
+        ]
+
+    def test_maps_left_secondary_monitor_negative_coords(self) -> None:
+        mapped = map_region_to_monitor(-2560, 0, 2560, 1440, self.monitors)
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        mon, region = mapped
+        self.assertEqual(mon.output_idx, 1)
+        self.assertEqual(region, (0, 0, 2560, 1440))
+
+    def test_maps_windowed_game_on_left_monitor(self) -> None:
+        mapped = map_region_to_monitor(-2240, 180, 1920, 1080, self.monitors)
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        mon, region = mapped
+        self.assertEqual(mon.output_idx, 1)
+        self.assertEqual(region, (320, 180, 2240, 1260))
+
+    def test_maps_primary_monitor(self) -> None:
+        mapped = map_region_to_monitor(0, 0, 2560, 1440, self.monitors)
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        mon, region = mapped
+        self.assertEqual(mon.output_idx, 0)
+        self.assertEqual(region, (0, 0, 2560, 1440))
 
 
 @unittest.skipUnless(HAS_NUMPY, "numpy not installed in minimal stdlib environment")

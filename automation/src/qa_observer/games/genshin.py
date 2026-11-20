@@ -158,6 +158,7 @@ class GenshinAdapter(GameAdapter):
                 "pid": win.pid if win else None,
                 "processName": win.process_name if win else None,
                 "title": win.title if win else None,
+                "position": [win.left, win.top] if win else None,
                 "resolution": win.resolution_str if win else None,
                 "isForeground": win.is_foreground if win else None,
                 "isMinimized": win.is_minimized if win else None,
@@ -166,9 +167,34 @@ class GenshinAdapter(GameAdapter):
         }
 
     # ------------------------------------------------------------------
-    # Template Capture Helper
+    # Template Capture Helper (with multi-monitor support, delay & ROI preview)
     # ------------------------------------------------------------------
-    def capture_template(self, name: str, roi_name: str = "bottom_prompts") -> Path:
+    def _resolve_roi(self, roi_spec: str) -> list[float] | None:
+        if roi_spec.strip().lower() in {"full", "all", "none"}:
+            return None
+        named = self.config.get("rois", {}).get(roi_spec)
+        if named:
+            return [float(x) for x in named]
+        if "," in roi_spec:
+            parts = [float(p.strip()) for p in roi_spec.split(",")]
+            if len(parts) == 4 and all(0.0 <= v <= 1.0 for v in parts) and parts[0] < parts[2] and parts[1] < parts[3]:
+                return parts
+            raise ValueError(f"自定义 --roi 必须为 4 个 0~1 之间的归一化坐标 x1,y1,x2,y2，收到：{roi_spec}")
+        valid_names = sorted(self.config.get("rois", {}).keys()) + ["full"]
+        raise ValueError(f"未知 ROI 名称 '{roi_spec}'，可选：{valid_names}，或传入自定义坐标如 0.75,0.80,0.99,0.98")
+
+    def capture_template(
+        self,
+        name: str,
+        roi_name: str = "bottom_prompts",
+        delay_sec: float = 3.0,
+        backend: str | None = None,
+        save_preview: bool = True,
+    ) -> dict[str, Any]:
+        roi = self._resolve_roi(roi_name)
+        if delay_sec > 0:
+            time.sleep(delay_sec)
+
         proc_cfg = self.config.get("process", {})
         win = find_game_window(
             process_names=proc_cfg.get("names", ["YuanShen.exe", "GenshinImpact.exe"]),
@@ -178,19 +204,65 @@ class GenshinAdapter(GameAdapter):
         if win is None or win.is_minimized:
             raise RuntimeError("未找到可见的原神客户端窗口，请先启动游戏并保持窗口可见（不要最小化）。")
 
-        capturer = FrameCapturer(self.config.get("capture", {}).get("backend", "auto"))
+        preferred = backend or self.config.get("capture", {}).get("backend", "auto")
+        capturer = FrameCapturer(preferred)
         try:
             frame = capturer.grab_region(win.left, win.top, win.width, win.height, rel_ts=0.0)
             if frame is None:
                 raise RuntimeError(f"截屏失败（当前后端：{capturer.backend_name}），请确认已安装 mss 或 dxcam。")
-            roi = self.config.get("rois", {}).get(roi_name)
-            sub_img = crop_normalized_roi(frame.bgr, roi)[0] if roi else frame.bgr
+
+            if roi is not None:
+                sub_img, px_box = crop_normalized_roi(frame.bgr, roi)
+            else:
+                sub_img = frame.bgr
+                px_box = (0, 0, frame.width, frame.height)
+
+            th, tw = sub_img.shape[:2]
+            if tw < 16 or th < 16:
+                raise RuntimeError(
+                    f"截取到的模板尺寸异常过小 ({tw}x{th})，原始捕获尺寸 ({frame.width}x{frame.height})，"
+                    f"窗口位置 ({win.left},{win.top},{win.width}x{win.height})，已拒绝写入。"
+                )
+
             self.templates_dir.mkdir(parents=True, exist_ok=True)
             safe_name = name if name.endswith(".png") else f"{name}.png"
             out_path = self.templates_dir / safe_name
             if not save_frame_png(sub_img, out_path):
                 raise RuntimeError("无法保存模板 PNG，请确认已安装 opencv-python 或 Pillow。")
-            return out_path
+
+            preview_path: Path | None = None
+            if save_preview:
+                preview_path = self.templates_dir / f"_preview_{safe_name}"
+                try:
+                    import cv2  # type: ignore
+
+                    annotated = frame.bgr.copy()
+                    cv2.rectangle(annotated, (px_box[0], px_box[1]), (px_box[2] - 1, px_box[3] - 1), (0, 255, 0), 3)
+                    save_frame_png(annotated, preview_path)
+                except Exception:
+                    save_frame_png(frame.bgr, preview_path)
+
+            vis = analyze_frame_visual(sub_img, None, self.config.get("thresholds", {}))
+            warnings: list[str] = []
+            if not win.is_foreground:
+                warnings.append("截图瞬间原神窗口不在前台：若终端与游戏在同一显示器，可能截到了遮挡窗口；可加 --delay 3 切回游戏后再截。")
+            if vis.std_luma < 3.0:
+                warnings.append(f"截取区域几乎为纯色（亮度={vis.mean_luma}, 标准差={vis.std_luma}），请打开预览图确认是否遮挡或黑屏。")
+
+            return {
+                "templatePath": str(out_path),
+                "previewPath": str(preview_path) if preview_path else None,
+                "backend": frame.backend,
+                "windowRect": [win.left, win.top, win.width, win.height],
+                "windowForeground": win.is_foreground,
+                "capturedFrameSize": f"{frame.width}x{frame.height}",
+                "templateSize": f"{tw}x{th}",
+                "roi": roi_name,
+                "roiPixels": list(px_box),
+                "lumaMean": vis.mean_luma,
+                "lumaStd": vis.std_luma,
+                "warnings": warnings,
+            }
         finally:
             capturer.close()
 

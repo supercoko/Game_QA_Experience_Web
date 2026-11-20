@@ -11,6 +11,7 @@ automation/src/*.egg-info/
 
 # Local runtime artifacts, screenshots & third-party binaries
 automation/reports/runs/
+automation/templates/**/_preview_*.png
 automation/tools/*.exe
 automation/tools/*.dll
 

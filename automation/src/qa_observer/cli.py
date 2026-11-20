@@ -139,10 +139,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_rep.add_argument("--sample-fps", type=float, default=None, help="视频抽帧频率（默认使用配置文件）")
 
     # genshin capture-template
-    p_tpl = ys_sub.add_parser("capture-template", help="从实时原神窗口裁剪保存键鼠/手柄图标模板")
+    p_tpl = ys_sub.add_parser("capture-template", help="从实时原神窗口裁剪保存键鼠/手柄图标模板（支持多显示器与倒计时）")
     p_tpl.add_argument("--config", default=str(default_game_config_path("genshin")))
     p_tpl.add_argument("--name", required=True, help="模板文件名（如 kbm_prompt 或 pad_xbox_prompt）")
-    p_tpl.add_argument("--roi", default="bottom_prompts", help="配置文件中的 ROI 名称（默认 bottom_prompts）")
+    p_tpl.add_argument(
+        "--roi",
+        default="bottom_prompts",
+        help="配置文件中的 ROI 名称（如 bottom_prompts / full）或归一化坐标 x1,y1,x2,y2",
+    )
+    p_tpl.add_argument("--delay", type=float, default=3.0, help="截图前等待秒数（默认 3s，方便切回游戏；双屏无遮挡可传 0）")
+    p_tpl.add_argument("--backend", default=None, choices=["auto", "dxcam", "mss", "pil"], help="可选：强制指定截屏后端")
+    p_tpl.add_argument("--no-preview", action="store_true", help="不生成带绿色 ROI 框的全屏核验预览图")
 
     # --- ci ---
     p_ci = sub.add_parser("ci", help="CI 数据校验与远程上报命令")
@@ -197,8 +204,16 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.ys_cmd == "capture-template":
-            out = adapter.capture_template(name=args.name, roi_name=args.roi)
-            print(f"已保存真实模板：{out}")
+            if args.delay > 0:
+                print(f"将在 {args.delay:.1f} 秒后截取原神窗口（若单屏请立即切回游戏画面）...")
+            res = adapter.capture_template(
+                name=args.name,
+                roi_name=args.roi,
+                delay_sec=args.delay,
+                backend=args.backend,
+                save_preview=not args.no_preview,
+            )
+            print(json.dumps(res, ensure_ascii=False, indent=2))
             return 0
 
         if args.ys_cmd == "observe":
