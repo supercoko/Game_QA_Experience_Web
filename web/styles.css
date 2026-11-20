@@ -327,6 +327,80 @@ tr:hover td { background: color-mix(in srgb, var(--primary-soft) 35%, transparen
   padding: 16px; margin-bottom: 12px;
 }
 
+/* Account & Auth UI */
+.topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.account-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--text);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.account-chip:hover { border-color: var(--primary); background: var(--bg-subtle); }
+.role-badge {
+  display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+}
+.role-badge-admin { background: var(--accent-soft); color: var(--accent); }
+.role-badge-user { background: var(--primary-soft); color: var(--primary); }
+.role-badge-guest { background: var(--bg-subtle); color: var(--text-muted); }
+
+.sidebar-account-box {
+  padding: 9px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg);
+  margin-bottom: 12px;
+}
+.sidebar-account-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.sidebar-account-name { font-weight: 700; font-size: 12.8px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-account-actions { display: flex; gap: 6px; }
+
+/* Modal */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(15, 23, 42, 0.56); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-dialog {
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+  background: var(--bg-elev); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 20px 22px;
+}
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-title { margin: 0; font-size: 16.5px; font-weight: 700; }
+.modal-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+/* SRS Memory Curve UI */
+.srs-rating-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  max-width: 780px; margin: 14px auto 0;
+}
+.srs-rate-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 10px 8px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-strong); background: var(--bg-elev); color: var(--text);
+  cursor: pointer; transition: transform 0.12s, border-color 0.15s, background 0.15s;
+}
+.srs-rate-btn:hover { transform: translateY(-1px); }
+.srs-rate-title { font-size: 13.5px; font-weight: 700; }
+.srs-rate-sub { font-size: 11.5px; color: var(--text-muted); }
+.srs-rate-1 { border-color: var(--danger); }
+.srs-rate-1:hover, .srs-rate-1 .srs-rate-title { color: var(--danger); }
+.srs-rate-1:hover { background: var(--danger-soft); }
+.srs-rate-2 { border-color: var(--warning); }
+.srs-rate-2:hover, .srs-rate-2 .srs-rate-title { color: var(--warning); }
+.srs-rate-2:hover { background: var(--warning-soft); }
+.srs-rate-3 { border-color: var(--primary); }
+.srs-rate-3:hover, .srs-rate-3 .srs-rate-title { color: var(--primary); }
+.srs-rate-3:hover { background: var(--primary-soft); }
+.srs-rate-4 { border-color: var(--success); }
+.srs-rate-4:hover, .srs-rate-4 .srs-rate-title { color: var(--success); }
+.srs-rate-4:hover { background: var(--success-soft); }
+
+.retention-mini { height: 5px; border-radius: 999px; background: var(--bg-subtle); overflow: hidden; margin-top: 8px; }
+.retention-mini-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+
+.admin-row-active td { background: var(--primary-soft) !important; }
+
 @media (max-width: 1024px) {
   .form-grid { grid-template-columns: 1fr; }
 }
@@ -342,7 +416,8 @@ tr:hover td { background: color-mix(in srgb, var(--primary-soft) 35%, transparen
   .mobile-menu-btn { display: inline-flex; }
   .topbar { padding: 10px 14px; }
   .content-area { padding: 16px 14px 48px; }
-  .search-box { width: 180px; }
+  .search-box { width: 140px; }
+  .srs-rating-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media print {
   .sidebar, .topbar, .filter-bar, .btn { display: none !important; }

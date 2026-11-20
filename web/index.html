@@ -12,7 +12,7 @@
       <div class="sidebar-header">
         <div class="brand">
           <div class="brand-badge">QA</div>
-          <div>游戏 QA 作品集</div>
+          <div id="brand-title">游戏 QA 作品集</div>
         </div>
         <div class="brand-sub">质量工程 × 4,134 修复条目 × 非侵入观测</div>
       </div>
@@ -20,43 +20,56 @@
       <ul class="nav-list">
         <li class="nav-item">
           <button class="nav-btn active" data-sec="overview">
-            <span>1. 能力概览与总览</span>
+            <span id="overview-nav-label">能力概览与总览</span>
             <span class="nav-badge">概览</span>
           </button>
         </li>
+        <li class="nav-item" data-owner-only hidden>
+          <button class="nav-btn" data-sec="jobs"><span>岗位匹配评估</span></button>
+        </li>
+        <li class="nav-item" data-owner-only hidden>
+          <button class="nav-btn" data-sec="intro"><span>个人介绍话术</span></button>
+        </li>
+        <li class="nav-item" data-owner-only hidden>
+          <button class="nav-btn" data-sec="qa"><span>经历与必考追问</span></button>
+        </li>
+        <li class="nav-item" data-owner-only hidden>
+          <button class="nav-btn" data-sec="roadmap"><span>面评诊断与 6 周路线</span></button>
+        </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="online">
-            <span>2. 版本修复条目分析</span>
+            <span>版本修复条目分析</span>
             <span class="nav-badge">4,134</span>
           </button>
         </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="methods">
-            <span>3. 测试方法与用例库</span>
+            <span>测试方法与用例库</span>
             <span class="nav-badge">8+14</span>
           </button>
         </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="study">
-            <span>4. QA 技术知识卡片</span>
+            <span>QA 技术知识卡片</span>
             <span class="nav-badge">43 卡</span>
           </button>
         </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="autohub">
-            <span>5. 非侵入自动化看板</span>
+            <span>非侵入自动化看板</span>
             <span class="nav-badge">CI+原神</span>
           </button>
         </li>
         <li class="nav-item">
           <button class="nav-btn" data-sec="feedback">
-            <span>6. 缺陷记录 & 架构说明</span>
+            <span>缺陷记录 & 架构说明</span>
             <span class="nav-badge">Pages</span>
           </button>
         </li>
       </ul>
 
       <div class="sidebar-footer">
+        <div id="sidebar-account"></div>
         <div class="mastery-box">
           <div class="mastery-header">
             <span>线上专题自测进度</span>
@@ -88,9 +101,12 @@
           <button class="mobile-menu-btn" id="mobile-menu-btn">☰ 菜单</button>
           <h1 class="page-title" id="page-title">能力概览与作品集总览</h1>
         </div>
-        <div class="search-box">
-          <span class="search-icon">🔍</span>
-          <input type="search" id="global-search" class="search-input" placeholder="搜索版本修复分析、测试用例、知识卡片、自动化数据..." />
+        <div class="topbar-right">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="search" id="global-search" class="search-input" placeholder="搜索版本修复分析、测试用例、知识卡片、自动化数据..." />
+          </div>
+          <div id="topbar-account"></div>
         </div>
       </header>
 
@@ -103,9 +119,15 @@
         <section id="view-study" class="section-view"></section>
         <section id="view-autohub" class="section-view"></section>
         <section id="view-feedback" class="section-view"></section>
+        <section id="view-jobs" class="section-view" data-owner-only hidden></section>
+        <section id="view-intro" class="section-view" data-owner-only hidden></section>
+        <section id="view-qa" class="section-view" data-owner-only hidden></section>
+        <section id="view-roadmap" class="section-view" data-owner-only hidden></section>
       </main>
     </div>
   </div>
+
+  <div id="auth-modal-root"></div>
 
   <script>window.QA_APP_MODE = "public";</script>
   <script src="data-public-profile.js"></script>
@@ -113,6 +135,9 @@
   <script src="data-methods.js"></script>
   <script src="data-study.js"></script>
   <script src="data-hub.js"></script>
+  <script src="srs.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="auth.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

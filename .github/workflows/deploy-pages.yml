@@ -5,6 +5,7 @@ on:
     branches: ["main", "master"]
     paths:
       - "web/**"
+      - "scripts/configure_pages_supabase.py"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
   workflow_call:
@@ -40,8 +41,14 @@ jobs:
       - name: Validate real-data-only automation store (Schema v2)
         run: python3 automation/scripts/ci_ingest.py validate --store web/data/automation-runs.json
 
-      - name: Ensure private prep files are excluded from public Pages
-        run: rm -rf web/private
+      - name: Stage public Pages files
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          mkdir pages
+          rsync -a --exclude='/private/' --exclude='/supabase-schema.sql' web/ pages/
+          python3 scripts/configure_pages_supabase.py pages/supabase-config.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -50,7 +57,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           name: ${{ env.PAGES_ARTIFACT_NAME }}
-          path: "web"
+          path: "pages"
 
       - name: Deploy to GitHub Pages
         id: deployment

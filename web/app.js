@@ -1,10 +1,7 @@
 (function () {
-  const STORAGE_KEY_MASTERY = "qa_prep_mastered_v1";
   const STORAGE_KEY_THEME = "qa_prep_theme_v1";
-  const STORAGE_KEY_FC = "qa_prep_fc_status_v1";
   const STORAGE_KEY_BUGS = "qa_prep_bugs_v2";
   const STORAGE_KEY_GH = "qa_prep_github_repo_v1";
-  const STORAGE_KEY_ROADMAP = "qa_prep_roadmap_done_v1";
 
   function safeGet(k, fallback) {
     try { return localStorage.getItem(k) ?? fallback; } catch { return fallback; }
@@ -14,8 +11,9 @@
   }
 
   const DEFAULT_REPO = window.DATA_HUB.defaultRepo || "supercoko/Game_QA_Experience_Web";
-  const IS_PRIVATE = window.QA_APP_MODE === "private";
-  const DATA_BASE = IS_PRIVATE ? "../data" : "./data";
+  const LOCAL_PRIVATE = window.QA_APP_MODE === "private";
+  let IS_PRIVATE = LOCAL_PRIVATE;
+  const DATA_BASE = LOCAL_PRIVATE ? "../data" : "./data";
   const FORBIDDEN_ORIGINS = new Set(["mock", "demo", "fake", "synthetic", "simulated", "sample", "fabricated"]);
 
   const state = {
@@ -25,14 +23,17 @@
     introTab: (window.DATA_JOBS && window.DATA_JOBS.selfIntros && window.DATA_JOBS.selfIntros[0]?.id) || "",
     onlineGame: "ALL",
     tcModule: "ALL",
-    // Flashcards
+    // Flashcards + Ebbinghaus SRS
     fcCat: "ALL",
-    fcFilterMode: "ALL", // ALL | TODO | HARD
+    fcFilterMode: "SMART", // SMART | DUE | NEW | HARD | CONSOLIDATED | ALL
     fcIndex: 0,
     fcFlipped: false,
-    fcStatus: JSON.parse(safeGet(STORAGE_KEY_FC, "{}")), // { id: 'hard' | 'fuzzy' | 'mastered' }
+    fcRecords: {},
     // Roadmap checklist
-    roadmapDone: new Set(JSON.parse(safeGet(STORAGE_KEY_ROADMAP, "[]"))),
+    roadmapDone: new Set(),
+    // Auth modal state
+    authModalOpen: false,
+    authModalMsg: "",
     // Automation Hub & CI Ingestion (Strict Real-Data-Only)
     autoData: window.DATA_HUB.defaultAutomationData,
     autoSource: "仓库基线：web/data/automation-runs.json（仅真实数据）",
@@ -54,36 +55,57 @@
     ghIssues: null,
     ghError: "",
     // Mastery
-    mastered: new Set(JSON.parse(safeGet(STORAGE_KEY_MASTERY, "[]")))
+    mastered: new Set()
   };
 
-  const SECTION_TITLES = IS_PRIVATE ? {
-    overview: "总览与校准策略（本地私有模式）",
+  const PRIVATE_TITLES = {
+    overview: "总览与校准策略",
     jobs: "岗位匹配评估 · 27 个官方 JD",
     intro: "个人介绍话术 · 3 套精简版（60s / 2min）",
     qa: "工作经历与必考追问 · 36 题（已拆分实际做过 vs 延伸思路）",
     online: "四款游戏版本修复条目分析 · 4,134 条公告梳理",
     methods: "游戏测试方法论 & 实战用例库",
     roadmap: "求职复盘诊断 & 6 周并行投递路线",
-    study: "技术知识卡片 · 43 张（含 UE → Unity 迁移与通用测试方法）",
+    study: "技术知识卡片 · 43 张（艾宾浩斯记忆曲线调度）",
     autohub: "非侵入自动化观测工具（原神已实现）& CI 真实数据看板",
-    feedback: "缺陷记录看板 & GitHub Pages 部署说明"
-  } : {
+    feedback: "缺陷记录看板 & GitHub Pages 部署说明",
+  };
+  const PUBLIC_TITLES = {
     overview: "能力概览与作品集总览",
     online: "四款商业游戏版本修复条目分析（4,134 条）",
     methods: "游戏测试方法论 & 实战用例库",
-    study: "游戏 QA 技术知识卡片库",
+    study: "游戏 QA 技术知识卡片库（艾宾浩斯记忆曲线）",
     autohub: "非侵入自动化观测工具 & CI 真实数据看板",
-    feedback: "缺陷记录看板 & 架构说明"
+    feedback: "缺陷记录看板 & 架构说明",
   };
 
-  function saveMastery() {
-    safeSet(STORAGE_KEY_MASTERY, JSON.stringify([...state.mastered]));
-    updateProgressBars();
+  function syncStateFromAuth() {
+    if (!window.QA_AUTH) return;
+    const prog = window.QA_AUTH.getCurrentProgress();
+    state.mastered = new Set(Object.keys(prog.mastered || {}));
+    state.fcRecords = prog.fcRecords || {};
+    state.roadmapDone = new Set(prog.roadmapDone || []);
   }
 
-  function saveFcStatus() {
-    safeSet(STORAGE_KEY_FC, JSON.stringify(state.fcStatus));
+  function getQuestionLabelMap() {
+    const map = {};
+    if (IS_PRIVATE && Array.isArray(window.DATA_QA)) {
+      window.DATA_QA.forEach(t => {
+        t.layers.forEach(l => {
+          map[`${t.id}-${l.layer}`] = { group: t.title, layer: l.layer, q: l.q };
+        });
+      });
+    }
+    window.DATA_ONLINE.interviewQAs.forEach((item, idx) => {
+      map[item.id] = { group: "线上质量与应急专题", layer: `Q${idx + 1}`, q: item.q };
+    });
+    return map;
+  }
+
+  function saveMastery(qid, checked) {
+    if (window.QA_AUTH && qid) {
+      window.QA_AUTH.setMastered(qid, checked);
+    }
     updateProgressBars();
   }
 
@@ -110,11 +132,13 @@
     if (bar) bar.style.width = `${pct}%`;
 
     const allFcs = window.DATA_STUDY.flashcards;
-    const fcDone = allFcs.filter(c => state.fcStatus[c.id] === "mastered").length;
-    const fcPct = allFcs.length ? Math.round((fcDone / allFcs.length) * 100) : 0;
+    const stats = window.QA_SRS
+      ? window.QA_SRS.computeStats(allFcs, state.fcRecords, Date.now())
+      : { studied: 0, consolidatedCount: 0, dueCount: 0, total: allFcs.length };
+    const fcPct = stats.total ? Math.round((stats.consolidatedCount / stats.total) * 100) : 0;
     const fcLabel = document.getElementById("fc-progress-text");
     const fcBar = document.getElementById("fc-progress-bar");
-    if (fcLabel) fcLabel.textContent = `${fcDone} / ${allFcs.length} (${fcPct}%)`;
+    if (fcLabel) fcLabel.textContent = `巩固 ${stats.consolidatedCount}/${stats.total} · 待复习 ${stats.dueCount}`;
     if (fcBar) fcBar.style.width = `${fcPct}%`;
   }
 
@@ -127,16 +151,16 @@
   }
 
   function switchSection(secId) {
+    if ((privateSections.includes(secId) && !IS_PRIVATE) || !document.getElementById(`view-${secId}`)) return;
     state.activeTab = secId;
     document.querySelectorAll(".section-view").forEach(el => el.classList.remove("active"));
-    const target = document.getElementById(`view-${secId}`);
-    if (target) target.classList.add("active");
+    document.getElementById(`view-${secId}`).classList.add("active");
 
     document.querySelectorAll(".nav-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.sec === secId);
     });
     const titleEl = document.getElementById("page-title");
-    if (titleEl) titleEl.textContent = SECTION_TITLES[secId] || "";
+    if (titleEl) titleEl.textContent = (IS_PRIVATE ? PRIVATE_TITLES : PUBLIC_TITLES)[secId] || "";
 
     document.getElementById("sidebar")?.classList.remove("open");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -322,13 +346,31 @@
     const pub = window.DATA_PUBLIC_PROFILE;
     const realRuns = state.autoData.runs || [];
     const fcCount = window.DATA_STUDY.flashcards.length;
+    const curUser = window.QA_AUTH ? window.QA_AUTH.getCurrentUser() : null;
+    const srsStats = window.QA_SRS
+      ? window.QA_SRS.computeStats(window.DATA_STUDY.flashcards, state.fcRecords, Date.now())
+      : { dueCount: 0, consolidatedCount: 0, studied: 0, avgRetention: 0 };
+
+    const srsBanner = curUser
+      ? `<div class="callout ${srsStats.dueCount > 0 ? "warn" : "success"}" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+          <div>
+            <strong>当前账户：${escHtml(curUser.displayName)}</strong> ·
+            学习卡片今日待复习 <strong>${srsStats.dueCount}</strong> 张，长期巩固 <strong>${srsStats.consolidatedCount}/${fcCount}</strong> 张${srsStats.studied ? `，平均记忆保持率 <strong>${srsStats.avgRetention}%</strong>` : ""}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="window.__goSec('study')">开始今日记忆曲线复习 →</button>
+            <button class="btn btn-sm" id="ov-open-auth-btn">${curUser.username === "guest" ? "使用 GitHub 登录" : "账户与进度同步"}</button>
+          </div>
+        </div>`
+      : "";
 
     if (!IS_PRIVATE) {
       const html = `
         <div class="callout">
-          <strong>${escHtml(pub.title)}</strong> · ${escHtml(pub.years)}
+          <strong>${escHtml(pub.title)}</strong> · ${escHtml(pub.years)}${pub.education ? ` · ${escHtml(pub.education)}` : ""}
           <br/>${escHtml(pub.positioning)}
         </div>
+        ${srsBanner}
 
         <div class="grid-4">
           <div class="kpi-card">
@@ -344,7 +386,7 @@
           <div class="kpi-card">
             <div class="kpi-label">QA 技术知识卡片</div>
             <div class="kpi-value" style="color:var(--accent)">${fcCount} 张</div>
-            <div class="kpi-sub">${window.DATA_STUDY.gapOverview.length} 大领域（含 UE→Unity 概念迁移）</div>
+            <div class="kpi-sub">${window.DATA_STUDY.gapOverview.length} 大领域（含 UE→Unity 迁移 · 记忆曲线）</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">非侵入自动化实测</div>
@@ -385,7 +427,9 @@
           </div>
         </div>
       `;
-      document.getElementById("view-overview").innerHTML = html;
+      const ovEl = document.getElementById("view-overview");
+      ovEl.innerHTML = html;
+      document.getElementById("ov-open-auth-btn")?.addEventListener("click", () => openAuthModal());
       return;
     }
 
@@ -397,11 +441,13 @@
     const html = `
       <div class="callout warn">
         <strong>${escHtml(note.title)}</strong>
+        ${p.education ? `<div style="margin-top:4px;font-size:13px;color:var(--text);"><strong>个人学历：</strong>${escHtml(p.education)}</div>` : ""}
         <ul style="margin:6px 0 8px;padding-left:18px;">
-          ${note.bullets.slice(0, 3).map(b => `<li style="margin-bottom:4px;">${escHtml(b)}</li>`).join("")}
+          ${note.bullets.slice(0, 4).map(b => `<li style="margin-bottom:4px;">${escHtml(b)}</li>`).join("")}
         </ul>
         <button class="btn btn-primary btn-sm" onclick="window.__goSec('roadmap')">查看完整复盘诊断 & 6 周并行路线 →</button>
       </div>
+      ${srsBanner}
 
       <div class="grid-4">
         <div class="kpi-card">
@@ -417,7 +463,7 @@
         <div class="kpi-card">
           <div class="kpi-label">追问题库 + 技术卡片</div>
           <div class="kpi-value" style="color:var(--accent)">${totalQA} 题 + ${fcCount} 卡</div>
-          <div class="kpi-sub">含离职/空窗期/反问清单、Unity 迁移、通用测试方法</div>
+          <div class="kpi-sub">含离职/空窗期/反问清单、Unity 迁移、记忆曲线</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">非侵入自动化实测</div>
@@ -458,6 +504,7 @@
       </div>
     `;
     document.getElementById("view-overview").innerHTML = html;
+    document.getElementById("ov-open-auth-btn")?.addEventListener("click", () => openAuthModal());
   }
 
   /* ---------- 2. Jobs ---------- */
@@ -677,7 +724,7 @@
         const node = chk.closest(".layer-node");
         if (chk.checked) { state.mastered.add(qid); node.classList.add("mastered"); }
         else { state.mastered.delete(qid); node.classList.remove("mastered"); }
-        saveMastery();
+        saveMastery(qid, chk.checked);
       });
     });
     container.querySelectorAll(".btn-next-layer").forEach(btn => {
@@ -799,7 +846,7 @@
         const node = chk.closest(".layer-node");
         if (chk.checked) { state.mastered.add(qid); node.classList.add("mastered"); }
         else { state.mastered.delete(qid); node.classList.remove("mastered"); }
-        saveMastery();
+        saveMastery(qid, chk.checked);
       });
     });
   }
@@ -883,35 +930,97 @@
     });
   }
 
-  /* ---------- 7. Knowledge Gaps & Interactive Flashcards ---------- */
-  function getFilteredFlashcards() {
-    return window.DATA_STUDY.flashcards.filter(c => {
-      if (state.fcCat !== "ALL" && c.cat !== state.fcCat) return false;
-      const st = state.fcStatus[c.id];
-      if (state.fcFilterMode === "TODO" && st === "mastered") return false;
-      if (state.fcFilterMode === "HARD" && st !== "hard") return false;
-      return true;
-    });
+  /* ---------- 7. Knowledge Gaps & Ebbinghaus SRS Flashcards ---------- */
+  function getFilteredFlashcards(nowMs = Date.now()) {
+    const SRS = window.QA_SRS;
+    const all = window.DATA_STUDY.flashcards.filter(c => state.fcCat === "ALL" || c.cat === state.fcCat);
+    if (!SRS) return all;
+    if (state.fcFilterMode === "SMART") {
+      return SRS.buildSmartQueue(all, state.fcRecords, nowMs);
+    }
+    if (state.fcFilterMode === "DUE") {
+      const due = all.filter(c => SRS.getCardStage(state.fcRecords[c.id], nowMs) === "due");
+      return SRS.buildSmartQueue(due, state.fcRecords, nowMs);
+    }
+    if (state.fcFilterMode === "NEW") {
+      return all.filter(c => SRS.getCardStage(state.fcRecords[c.id], nowMs) === "new");
+    }
+    if (state.fcFilterMode === "HARD") {
+      return all.filter(c => {
+        const rec = state.fcRecords[c.id];
+        return rec && (rec.lastRating === 1 || (rec.lapses > 0 && SRS.getCardStage(rec, nowMs) !== "consolidated"));
+      });
+    }
+    if (state.fcFilterMode === "CONSOLIDATED") {
+      return all.filter(c => SRS.getCardStage(state.fcRecords[c.id], nowMs) === "consolidated");
+    }
+    return all;
+  }
+
+  function renderSrsBadge(cardId, nowMs) {
+    const SRS = window.QA_SRS;
+    const rec = state.fcRecords[cardId];
+    const stage = SRS ? SRS.getCardStage(rec, nowMs) : "new";
+    if (stage === "new") return `<span class="pill pill-muted">未学习 · 新卡</span>`;
+    const ret = SRS.computeRetention(rec, nowMs);
+    if (stage === "due") return `<span class="pill pill-c">已到期 · 保持 ${ret}%</span>`;
+    if (stage === "learning") return `<span class="pill pill-b">巩固中 · 保持 ${ret}%</span>`;
+    return `<span class="pill pill-s">已巩固 · 保持 ${ret}%</span>`;
+  }
+
+  function rateCurrentFlashcard(rating) {
+    const SRS = window.QA_SRS;
+    if (!SRS) return;
+    const nowMs = Date.now();
+    const deck = getFilteredFlashcards(nowMs);
+    if (!deck.length) return;
+    if (state.fcIndex >= deck.length) state.fcIndex = 0;
+    const cur = deck[state.fcIndex];
+    if (!cur) return;
+
+    const prevRec = state.fcRecords[cur.id] || SRS.createEmptyRecord(cur.id);
+    const updated = SRS.reviewCard(prevRec, rating, nowMs);
+    state.fcRecords[cur.id] = updated;
+    if (window.QA_AUTH) {
+      window.QA_AUTH.saveFcRecord(cur.id, updated);
+    }
+    updateProgressBars();
+
+    const nextDeck = getFilteredFlashcards(Date.now());
+    if (nextDeck.length) {
+      if (state.fcFilterMode === "SMART" || state.fcFilterMode === "DUE" || state.fcFilterMode === "NEW") {
+        state.fcIndex = 0;
+      } else {
+        state.fcIndex = (state.fcIndex + 1) % nextDeck.length;
+      }
+    } else {
+      state.fcIndex = 0;
+    }
+    state.fcFlipped = false;
+    renderStudy();
+    renderOverview();
   }
 
   function renderStudy() {
     const data = window.DATA_STUDY;
+    const SRS = window.QA_SRS;
+    const nowMs = Date.now();
     const cats = ["ALL", ...data.gapOverview.map(g => g.cat)];
-    const deck = getFilteredFlashcards();
+    const catCards = data.flashcards.filter(c => state.fcCat === "ALL" || c.cat === state.fcCat);
+    const stats = SRS.computeStats(catCards, state.fcRecords, nowMs);
+    const allStats = SRS.computeStats(data.flashcards, state.fcRecords, nowMs);
+    const deck = getFilteredFlashcards(nowMs);
     if (state.fcIndex >= deck.length) state.fcIndex = 0;
     const cur = deck[state.fcIndex];
-
-    const statusBadge = id => {
-      const st = state.fcStatus[id];
-      if (st === "mastered") return `<span class="pill pill-s">已掌握 ✓</span>`;
-      if (st === "hard") return `<span class="pill pill-c">需强化复习</span>`;
-      if (st === "fuzzy") return `<span class="pill pill-b">有点印象</span>`;
-      return `<span class="pill pill-muted">未学习</span>`;
-    };
+    const curRec = cur ? (state.fcRecords[cur.id] || SRS.createEmptyRecord(cur.id)) : null;
+    const curRet = curRec ? SRS.computeRetention(curRec, nowMs) : null;
+    const previews = curRec ? SRS.previewIntervals(curRec, nowMs) : null;
+    const curUser = window.QA_AUTH ? window.QA_AUTH.getCurrentUser() : null;
 
     const html = `
       <div class="callout">
-        <strong>游戏 QA 技术知识卡片库（共 ${data.gapOverview.length} 大领域 · ${data.flashcards.length} 张）：</strong>覆盖线上发布运维、性能与渲染、Web 全栈工程、弱网安全、AI/VLM 工程化、多端规范、核心业务建模、通用测试方法与 UE → Unity 概念迁移。点击卡片可翻转查看详解与要点，阅读状态保存在本地浏览器。
+        <strong>游戏 QA 技术知识卡片库（艾宾浩斯遗忘曲线 + SM-2 间隔重复调度）：</strong>
+        共 ${data.gapOverview.length} 大领域 · ${data.flashcards.length} 张卡片。每次翻转自评（<code>1 重来</code> / <code>2 困难</code> / <code>3 良好</code> / <code>4 简单</code>）会自动调整易度因子 <code>EF</code> 与下一次复习时间，优先把接近遗忘临界点（85% 保持率）的卡片推到最前面。${curUser ? `当前进度独立保存在账户 <strong>${escHtml(curUser.displayName)} (${escHtml(curUser.username)})</strong> 下。` : ""}
       </div>
 
       <h3 style="margin:0 0 12px;font-size:16.5px;">一、${data.gapOverview.length} 大技术知识地图</h3>
@@ -928,7 +1037,42 @@
         `).join("")}
       </div>
 
-      <h3 style="margin:22px 0 12px;font-size:16.5px;">二、交互式翻转学习卡片（Flashcards）</h3>
+      <h3 style="margin:22px 0 12px;font-size:16.5px;">二、记忆曲线概览与未来 7 天复习排期</h3>
+      <div class="grid-4">
+        <div class="kpi-card">
+          <div class="kpi-label">今日待复习（已到期）</div>
+          <div class="kpi-value" style="color:${allStats.dueCount ? "var(--danger)" : "var(--success)"}">${allStats.dueCount} 张</div>
+          <div class="kpi-sub">今日已完成复习 ${allStats.todayReviews} 次</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">新卡未学</div>
+          <div class="kpi-value" style="color:var(--primary)">${allStats.newCount} 张</div>
+          <div class="kpi-sub">已启动学习 ${allStats.studied} / ${allStats.total} 张</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">平均记忆保持率</div>
+          <div class="kpi-value" style="color:var(--accent)">${allStats.studied ? `${allStats.avgRetention}%` : "--"}</div>
+          <div class="kpi-sub">平均易度因子 EF：${allStats.avgEase}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">长期巩固（间隔 ≥ 7 天）</div>
+          <div class="kpi-value" style="color:var(--success)">${allStats.consolidatedCount} 张</div>
+          <div class="kpi-sub">累计复习 ${allStats.totalReviews} 次 · 巩固中 ${allStats.learningCount} 张</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4 class="card-title" style="font-size:14.5px;">艾宾浩斯遗忘曲线 & 当前卡实时状态</h4>
+          ${SRS.renderForgettingCurveSVG(curRec, nowMs)}
+        </div>
+        <div class="card">
+          <h4 class="card-title" style="font-size:14.5px;">未来 7 天到期复习量预测（全部卡片）</h4>
+          ${SRS.renderForecast7dSVG(allStats.forecast7d)}
+        </div>
+      </div>
+
+      <h3 style="margin:22px 0 12px;font-size:16.5px;">三、交互式翻转学习卡片（支持键盘 Space 翻卡，1/2/3/4 评分）</h3>
       <div class="filter-bar">
         ${cats.map(c => `
           <button class="filter-chip ${state.fcCat === c ? "active" : ""}" data-fccat="${escHtml(c)}">
@@ -938,12 +1082,15 @@
       </div>
 
       <div class="filter-bar">
-        <span style="font-size:13px;font-weight:700;color:var(--text-muted);">刷卡模式：</span>
-        <button class="filter-chip ${state.fcFilterMode === "ALL" ? "active" : ""}" data-fcmode="ALL">全部卡片</button>
-        <button class="filter-chip ${state.fcFilterMode === "TODO" ? "active" : ""}" data-fcmode="TODO">只看未掌握</button>
-        <button class="filter-chip ${state.fcFilterMode === "HARD" ? "active" : ""}" data-fcmode="HARD">只看需强化</button>
+        <span style="font-size:13px;font-weight:700;color:var(--text-muted);">调度视图：</span>
+        <button class="filter-chip ${state.fcFilterMode === "SMART" ? "active" : ""}" data-fcmode="SMART">智能队列 (${stats.total})</button>
+        <button class="filter-chip ${state.fcFilterMode === "DUE" ? "active" : ""}" data-fcmode="DUE">今日待复习 (${stats.dueCount})</button>
+        <button class="filter-chip ${state.fcFilterMode === "NEW" ? "active" : ""}" data-fcmode="NEW">新卡未学 (${stats.newCount})</button>
+        <button class="filter-chip ${state.fcFilterMode === "HARD" ? "active" : ""}" data-fcmode="HARD">易错重学 (${stats.hardCount})</button>
+        <button class="filter-chip ${state.fcFilterMode === "CONSOLIDATED" ? "active" : ""}" data-fcmode="CONSOLIDATED">长期巩固 (${stats.consolidatedCount})</button>
+        <button class="filter-chip ${state.fcFilterMode === "ALL" ? "active" : ""}" data-fcmode="ALL">原始顺序 (${stats.total})</button>
         <button class="btn btn-sm" id="fc-random-btn" style="margin-left:auto;">🎲 随机抽卡</button>
-        <button class="btn btn-sm" id="fc-reset-btn">重置刷卡记录</button>
+        <button class="btn btn-sm" id="fc-reset-btn">重置当前账户刷卡</button>
       </div>
 
       <div class="fc-stage">
@@ -954,15 +1101,23 @@
                 <span class="pill pill-purple">${escHtml(cur.cat)}</span>
                 <span class="pill pill-a" style="margin-left:5px;">${escHtml(cur.difficulty)}</span>
               </div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                ${statusBadge(cur.id)}
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                ${renderSrsBadge(cur.id, nowMs)}
                 <strong>第 ${state.fcIndex + 1} / ${deck.length} 张</strong>
               </div>
             </div>
 
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;display:flex;flex-wrap:wrap;gap:12px;">
+              <span>记忆保持率：<strong>${curRet !== null ? `${curRet}%` : "未学习"}</strong></span>
+              <span>易度 EF：<strong>${curRec.easeFactor}</strong></span>
+              <span>连续回忆：<strong>${curRec.reps} 次</strong></span>
+              <span>遗忘重来：<strong>${curRec.lapses} 次</strong></span>
+              <span>下次复习：<strong>${curRec.lastReviewAt ? SRS.formatDueDelta(curRec.nextReviewAt, nowMs) : "首次学习"}</strong></span>
+            </div>
+
             ${!state.fcFlipped ? `
               <div class="fc-front-q">${escHtml(cur.front)}</div>
-              <div class="fc-hint">👆 点击卡片任意位置，翻转查看硬核解析与面试金句</div>
+              <div class="fc-hint">👆 点击卡片（或按空格键）翻转查看详解，并根据回忆情况进行 4 档记忆曲线评分</div>
             ` : `
               <div style="font-weight:700;color:var(--text-muted);font-size:13px;margin-bottom:8px;">问题：${escHtml(cur.front)}</div>
               <div class="fc-answer">${escHtml(cur.back)}</div>
@@ -970,32 +1125,64 @@
             `}
           </div>
 
+          ${state.fcFlipped && previews ? `
+            <div class="srs-rating-grid">
+              <button class="srs-rate-btn srs-rate-1" data-srsrate="1">
+                <span class="srs-rate-title">1 · 重来（忘了）</span>
+                <span class="srs-rate-sub">${escHtml(previews[1].label)} · EF ${previews[1].easeFactor}</span>
+              </button>
+              <button class="srs-rate-btn srs-rate-2" data-srsrate="2">
+                <span class="srs-rate-title">2 · 困难（模糊）</span>
+                <span class="srs-rate-sub">${escHtml(previews[2].label)} · EF ${previews[2].easeFactor}</span>
+              </button>
+              <button class="srs-rate-btn srs-rate-3" data-srsrate="3">
+                <span class="srs-rate-title">3 · 良好（记住）</span>
+                <span class="srs-rate-sub">${escHtml(previews[3].label)} · EF ${previews[3].easeFactor}</span>
+              </button>
+              <button class="srs-rate-btn srs-rate-4" data-srsrate="4">
+                <span class="srs-rate-title">4 · 简单（秒答）</span>
+                <span class="srs-rate-sub">${escHtml(previews[4].label)} · EF ${previews[4].easeFactor}</span>
+              </button>
+            </div>
+          ` : ""}
+
           <div class="fc-controls">
             <button class="btn" id="fc-prev-btn">← 上一张</button>
-            <button class="btn" style="border-color:var(--danger);color:var(--danger);" data-fcrate="hard">还没懂（加入强化）</button>
-            <button class="btn" style="border-color:var(--warning);color:var(--warning);" data-fcrate="fuzzy">有点印象</button>
-            <button class="btn btn-primary" style="background:var(--success);border-color:var(--success);" data-fcrate="mastered">已掌握 ✓</button>
-            <button class="btn" id="fc-next-btn">下一张 →</button>
+            <button class="btn btn-primary" id="fc-flip-btn">${state.fcFlipped ? "翻回正面 (Space)" : "显示答案 (Space)"}</button>
+            <button class="btn" id="fc-next-btn">跳过 / 下一张 →</button>
           </div>
         ` : `
           <div class="card" style="text-align:center;padding:36px;">
-            <h3>🎉 当前筛选条件下已全部掌握或无待复习卡片！</h3>
-            <button class="btn btn-primary" id="fc-show-all-btn">切换回全部卡片</button>
+            <h3>当前筛选队列暂时为空！</h3>
+            <p style="color:var(--text-secondary);margin:8px 0 14px;">如当前“今日待复习”或“新卡未学”已清空，可切回“智能队列”或“全部卡片”继续巩固。</p>
+            <button class="btn btn-primary" id="fc-show-all-btn">切换到智能队列</button>
           </div>
         `}
       </div>
 
-      <h4 style="margin:22px 0 10px;font-size:15px;">卡片总览速查表（点击直接跳至该卡）</h4>
+      <h4 style="margin:22px 0 10px;font-size:15px;">卡片总览速查表（显示实时记忆保持率与下次复习时间，点击跳转）</h4>
       <div class="grid-3">
-        ${deck.map((c, idx) => `
-          <div class="card" style="padding:13px;cursor:pointer;${idx === state.fcIndex ? "border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft);" : ""}" data-fcjump="${idx}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <span style="font-size:11.5px;color:var(--text-muted);">${escHtml(c.cat)}</span>
-              ${statusBadge(c.id)}
-            </div>
-            <div style="font-size:13.2px;font-weight:600;line-height:1.45;">${escHtml(c.front)}</div>
-          </div>
-        `).join("")}
+        ${deck.map((c, idx) => {
+          const rec = state.fcRecords[c.id];
+          const ret = SRS.computeRetention(rec, nowMs);
+          const stage = SRS.getCardStage(rec, nowMs);
+          const barClr = stage === "due" ? "var(--danger)" : stage === "learning" ? "var(--warning)" : stage === "consolidated" ? "var(--success)" : "var(--border-strong)";
+          return `
+            <div class="card" style="padding:13px;cursor:pointer;${idx === state.fcIndex ? "border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft);" : ""}" data-fcjump="${idx}">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;">
+                <span style="font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.cat)}</span>
+                ${renderSrsBadge(c.id, nowMs)}
+              </div>
+              <div style="font-size:13.2px;font-weight:600;line-height:1.45;margin-bottom:6px;">${escHtml(c.front)}</div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-muted);">
+                <span>间隔：${rec ? SRS.formatInterval(rec.intervalDays) : "未学"}</span>
+                <span>${rec && rec.lastReviewAt ? `复习：${SRS.formatDueDelta(rec.nextReviewAt, nowMs)}` : "新卡"}</span>
+              </div>
+              <div class="retention-mini">
+                <div class="retention-mini-fill" style="width:${ret !== null ? ret : 0}%;background:${barClr};"></div>
+              </div>
+            </div>`;
+        }).join("")}
       </div>
     `;
 
@@ -1009,6 +1196,10 @@
       b.addEventListener("click", () => { state.fcFilterMode = b.dataset.fcmode; state.fcIndex = 0; state.fcFlipped = false; renderStudy(); });
     });
     document.getElementById("fc-active-card")?.addEventListener("click", () => {
+      state.fcFlipped = !state.fcFlipped;
+      renderStudy();
+    });
+    document.getElementById("fc-flip-btn")?.addEventListener("click", () => {
       state.fcFlipped = !state.fcFlipped;
       renderStudy();
     });
@@ -1031,26 +1222,27 @@
       renderStudy();
     });
     document.getElementById("fc-reset-btn")?.addEventListener("click", () => {
-      state.fcStatus = {};
-      saveFcStatus();
+      const targetName = curUser ? curUser.displayName : "当前账户";
+      if (!window.confirm(`确定要清空【${targetName}】的全部学习卡片记忆曲线记录吗？`)) return;
+      if (window.QA_AUTH && curUser) {
+        window.QA_AUTH.resetCards();
+        syncStateFromAuth();
+      } else {
+        state.fcRecords = {};
+      }
+      state.fcIndex = 0;
+      state.fcFlipped = false;
+      updateProgressBars();
       renderStudy();
+      renderOverview();
     });
     document.getElementById("fc-show-all-btn")?.addEventListener("click", () => {
-      state.fcFilterMode = "ALL";
+      state.fcFilterMode = "SMART";
       state.fcIndex = 0;
       renderStudy();
     });
-    container.querySelectorAll("[data-fcrate]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        if (!cur) return;
-        state.fcStatus[cur.id] = btn.dataset.fcrate;
-        saveFcStatus();
-        const nextDeck = getFilteredFlashcards();
-        if (nextDeck.length) state.fcIndex = (state.fcIndex + 1) % nextDeck.length;
-        else state.fcIndex = 0;
-        state.fcFlipped = false;
-        renderStudy();
-      });
+    container.querySelectorAll("[data-srsrate]").forEach(btn => {
+      btn.addEventListener("click", () => rateCurrentFlashcard(Number(btn.dataset.srsrate)));
     });
     container.querySelectorAll("[data-fcjump]").forEach(card => {
       card.addEventListener("click", () => {
@@ -1188,13 +1380,244 @@
         const id = chk.dataset.rmid;
         if (chk.checked) state.roadmapDone.add(id);
         else state.roadmapDone.delete(id);
-        safeSet(STORAGE_KEY_ROADMAP, JSON.stringify([...state.roadmapDone]));
+        if (window.QA_AUTH) {
+          window.QA_AUTH.toggleRoadmapTask(id, chk.checked);
+        }
         renderRoadmap();
       });
     });
   }
 
-  /* ---------- 8. Non-Intrusive Automation & CI Real-Data Dashboard ---------- */
+  /* ---------- Account UI, Auth Modal & Admin Dashboard ---------- */
+  function formatIsoShort(iso) {
+    if (!iso) return "--";
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return String(iso);
+    }
+  }
+
+  function downloadTextFile(filename, content, mimeType = "application/json") {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderAllViewsAfterAuthChange() {
+    syncStateFromAuth();
+    renderAccountUI();
+    renderOverview();
+    renderQA();
+    renderOnline();
+    renderStudy();
+    renderRoadmap();
+    updateProgressBars();
+  }
+
+  const auth = window.QA_AUTH;
+
+  function accountStatus() {
+    const cloud = auth.getCloudState();
+    if (cloud.localError) return cloud.localError;
+    if (cloud.lastError) return cloud.lastError;
+    if (!cloud.configured) return "本地进度 · 云端尚未配置";
+    if (!cloud.authReady) return "正在连接登录服务";
+    if (auth.getCurrentUser().username === "guest") return "访客进度保存在本机";
+    if (cloud.syncing) return "正在同步学习记录";
+    if (cloud.pending) return `待同步 ${cloud.pending} 条更改`;
+    return cloud.lastSyncAt ? `已同步 · ${formatIsoShort(cloud.lastSyncAt)}` : "等待同步学习记录";
+  }
+
+  function renderAccountUI() {
+    const user = auth.getCurrentUser();
+    const top = document.getElementById("topbar-account");
+    top.innerHTML = `<button class="account-chip" id="topbar-account-btn">${escHtml(user.displayName)} · 账户</button>`;
+    document.getElementById("topbar-account-btn").onclick = openAuthModal;
+    const side = document.getElementById("sidebar-account");
+    side.innerHTML = `
+      <div class="sidebar-account-box">
+        <div class="sidebar-account-name">${escHtml(user.displayName)}</div>
+        <div class="sidebar-account-top" role="status">${escHtml(accountStatus())}</div>
+        <button class="btn btn-sm" id="sidebar-account-btn">${user.username === "guest" ? "GitHub 登录 / 迁移进度" : "账户与学习记录"}</button>
+      </div>`;
+    document.getElementById("sidebar-account-btn").onclick = openAuthModal;
+    const statusEl = document.getElementById("account-sync-status");
+    if (statusEl) statusEl.textContent = accountStatus();
+  }
+
+  function openAuthModal() {
+    state.authModalOpen = true;
+    state.authModalMsg = "";
+    renderAuthModal();
+  }
+
+  function closeAuthModal() {
+    state.authModalOpen = false;
+    document.getElementById("auth-modal-root").replaceChildren();
+  }
+
+  function renderAuthModal() {
+    const root = document.getElementById("auth-modal-root");
+    const user = auth.getCurrentUser();
+    const signedIn = user.username !== "guest";
+    const cloud = auth.getCloudState();
+    const sources = auth.getLocalSources();
+    root.innerHTML = `
+      <div class="modal-backdrop" id="account-backdrop">
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+          <div class="modal-header">
+            <h2 class="modal-title" id="account-dialog-title">账户与学习记录</h2>
+            <button class="btn btn-sm" id="account-close">关闭</button>
+          </div>
+          <div class="auth-modal-body">
+            <p id="account-sync-status" role="status">${escHtml(accountStatus())}</p>
+            <p id="account-message" role="status">${escHtml(state.authModalMsg)}</p>
+            <div class="sidebar-account-actions">
+              ${signedIn
+                ? '<button class="btn btn-primary" id="account-sync">立即同步</button><button class="btn" id="account-logout">退出登录</button>'
+                : `<button class="btn btn-primary" id="account-login" ${cloud.authReady ? "" : "disabled"}>使用 GitHub 登录</button>`}
+            </div>
+            ${sources.length ? `
+              <p>导入此浏览器上的学习记录到当前账户。</p>
+              <div class="sidebar-account-actions">
+                <select class="input" aria-label="学习记录来源" id="account-legacy-source">
+                  ${sources.map((source, index) => `<option value="${index}">${escHtml(source.name)}</option>`).join("")}
+                </select>
+                <button class="btn" id="account-legacy-import">导入选中记录</button>
+              </div>` : ""}
+            <div class="sidebar-account-actions" style="margin-top:12px;">
+              <button class="btn" id="account-export">导出当前进度</button>
+              <label class="btn" for="account-import">导入 JSON</label>
+              <input id="account-import" type="file" accept=".json,application/json" hidden />
+              ${signedIn && !LOCAL_PRIVATE && !IS_PRIVATE && privateLoadFailed
+                ? '<button class="btn" id="account-private-retry">重试加载私有备战</button>' : ""}
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const message = (value) => {
+      state.authModalMsg = value;
+      const element = document.getElementById("account-message");
+      if (element) element.textContent = value;
+    };
+    const importIntoAccount = (progress) => {
+      if (auth.getCurrentUser() !== user) throw new Error("账户已切换，请重新选择文件");
+      auth.importProgress(progress);
+      message(signedIn ? "已导入，正在同步到当前 GitHub 账户。" : "已导入到此浏览器的访客进度。");
+    };
+    document.getElementById("account-close").onclick = closeAuthModal;
+    document.getElementById("account-backdrop").onclick = e => {
+      if (e.target === e.currentTarget) closeAuthModal();
+    };
+    document.getElementById("account-login")?.addEventListener("click", async () => {
+      try { await auth.login(); }
+      catch { message("暂时无法发起 GitHub 登录，请重试。"); }
+    });
+    document.getElementById("account-logout")?.addEventListener("click", async () => {
+      try {
+        await auth.logout();
+        closeAuthModal();
+      } catch { message("退出失败，请重试。"); }
+    });
+    document.getElementById("account-sync")?.addEventListener("click", async () => {
+      if (await auth.sync()) message("学习记录已同步。");
+    });
+    document.getElementById("account-legacy-import")?.addEventListener("click", () => {
+      const selected = Number(document.getElementById("account-legacy-source").value);
+      try { importIntoAccount(sources[selected].progress); }
+      catch (err) { message(err.message); }
+    });
+    document.getElementById("account-import").onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        importIntoAccount(data.account?.progress ?? data.progress ?? data);
+      } catch (err) { message(`导入失败：${err.message}`); }
+      e.target.value = "";
+    };
+    document.getElementById("account-export").onclick = () => {
+      downloadTextFile("qa-learning-progress.json", JSON.stringify({
+        exportedAt: new Date().toISOString(), progress: auth.getCurrentProgress()
+      }, null, 2));
+    };
+    document.getElementById("account-private-retry")?.addEventListener("click", async () => {
+      await loadPrivatePrep();
+      if (state.authModalOpen) renderAuthModal();
+    });
+  }
+
+  let privateLoadFailed = false;
+  let privateRequest = 0;
+  const privateSections = ["jobs", "intro", "qa", "roadmap"];
+  const title = {
+    public: "能力概览与作品集总览",
+    private: "总览与校准策略"
+  };
+
+  function setOnlinePrivate(payload) {
+    if (LOCAL_PRIVATE) return;
+    IS_PRIVATE = Boolean(payload);
+    if (payload) {
+      window.DATA_JOBS = payload.jobs;
+      window.DATA_QA = payload.qa;
+      window.DATA_ROADMAP = payload.roadmap;
+      state.introTab = payload.jobs.selfIntros[0]?.id || "";
+      renderJobs();
+      renderIntro();
+    } else {
+      delete window.DATA_JOBS;
+      delete window.DATA_QA;
+      delete window.DATA_ROADMAP;
+      state.introTab = "";
+      for (const id of privateSections) document.getElementById(`view-${id}`).replaceChildren();
+      const search = document.getElementById("search-results");
+      search.replaceChildren();
+      search.style.display = "none";
+      document.getElementById("global-search").value = "";
+    }
+    document.querySelectorAll("[data-owner-only]").forEach(el => { el.hidden = !IS_PRIVATE; });
+    document.getElementById("brand-title").textContent = IS_PRIVATE ? "私有面试备战台" : "游戏 QA 作品集";
+    document.getElementById("overview-nav-label").textContent = IS_PRIVATE ? "总览与校准策略" : "能力概览与总览";
+    if (!IS_PRIVATE && privateSections.includes(state.activeTab)) switchSection("overview");
+    if (state.activeTab === "overview") document.getElementById("page-title").textContent = title[IS_PRIVATE ? "private" : "public"];
+    renderAllViewsAfterAuthChange();
+  }
+
+  async function loadPrivatePrep() {
+    if (LOCAL_PRIVATE) return;
+    const request = ++privateRequest;
+    const user = auth.getCurrentUser();
+    privateLoadFailed = false;
+    if (IS_PRIVATE) setOnlinePrivate(null);
+    if (user.username === "guest") return;
+    try {
+      const payload = await auth.getPrivatePrep();
+      if (request !== privateRequest || auth.getCurrentUser() !== user) return;
+      if (payload) {
+        if (!Array.isArray(payload.jobs?.jobs) || !Array.isArray(payload.jobs?.selfIntros) || !Array.isArray(payload.qa) || !Array.isArray(payload.roadmap?.roadmapWeeks)) {
+          throw new Error("Invalid private prep content");
+        }
+        setOnlinePrivate(payload);
+      }
+    } catch {
+      if (request === privateRequest) {
+        if (IS_PRIVATE) setOnlinePrivate(null);
+        privateLoadFailed = true;
+        if (state.authModalOpen) renderAuthModal();
+      }
+    }
+  }
+
   function renderCiBadge(run) {
     const ci = run.ci || {};
     const provider = ci.provider || "local-cli";
@@ -2154,6 +2577,21 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     initTheme();
+    auth.onChange(event => {
+      if (event === "account") {
+        closeAuthModal();
+        loadPrivatePrep();
+        renderAllViewsAfterAuthChange();
+      } else if (event === "progress") {
+        renderAllViewsAfterAuthChange();
+      } else {
+        renderAccountUI();
+        const login = document.getElementById("account-login");
+        if (login) login.disabled = !auth.getCloudState().authReady;
+      }
+    });
+    auth.init();
+    renderAccountUI();
     renderOverview();
     renderJobs();
     renderIntro();
@@ -2181,5 +2619,19 @@
     });
     document.getElementById("print-btn")?.addEventListener("click", () => window.print());
     document.getElementById("global-search")?.addEventListener("input", e => runSearch(e.target.value));
+
+    document.addEventListener("keydown", e => {
+      if (state.authModalOpen || state.activeTab !== "study") return;
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        state.fcFlipped = !state.fcFlipped;
+        renderStudy();
+      } else if (state.fcFlipped && ["1", "2", "3", "4"].includes(e.key)) {
+        e.preventDefault();
+        rateCurrentFlashcard(Number(e.key));
+      }
+    });
   });
 })();
