@@ -3,6 +3,7 @@ window.DATA_PUBLIC_PROFILE = {
   title: "游戏 QA 作品集与质量工程看板",
   subtitle: "系统测试 × 配置与静态左移 × 4,134 条版本修复分析 × 非侵入自动化观测",
   years: "3.5 年游戏测试与质量工具实践（UE 项目为主）",
+  education: "工学学士 + Information Technology 硕士",
   positioning: "聚焦复杂系统测试、白盒/灰盒问题定位、配置变更检测与质量效率工具建设",
   radarNote: "注：以下六维分值为基于个人工作侧重点的能力自评，仅供概览参考。",
   radar: [

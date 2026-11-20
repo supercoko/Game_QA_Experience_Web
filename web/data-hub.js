@@ -1,6 +1,13 @@
 window.DATA_HUB = {
   defaultRepo: "supercoko/Game_QA_Experience_Web",
 
+  // Supabase 云端同步默认配置（可在此处填入 Project URL 与 anon public key 实现 GitHub Pages 全员默认连接，
+  // 也可直接在网页右上角「账户 -> 云端同步 (Supabase)」弹窗中在线配置并保存）
+  supabase: {
+    url: "",
+    anonKey: ""
+  },
+
   // 严格真实数据原则：默认空数据集，不预置任何编造或模拟的巡检数据。
   // 托管至 GitHub Pages 或本地 HTTP 打开后，自动 fetch ./data/automation-runs.json 获取 CI 入库的真实记录。
   defaultAutomationData: {
